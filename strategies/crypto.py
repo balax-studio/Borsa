@@ -1503,8 +1503,8 @@ def _check_crypto_sniper_1h_long(ctx_1h):
     bbw = ctx_1h["bbw"]
     # --- GOLDEN FILTER INJECTION ---
     # KRİPTO LONG 10: KESKİN NİŞANCI (SNIPER)
-    # Filter: BB_Width < 0.1465 (+102.00R Improvement)
-    if bbw is not None and pd.notna(bbw) and bbw >= 0.1465:
+    # Filter: BB_Width < 0.1000 (Sıkı Squeeze - İkinci Optimizasyon Aşaması)
+    if bbw is not None and pd.notna(bbw) and bbw >= 0.1000:
         return signals
 
     symbol = ctx_1h["symbol"]
@@ -1527,7 +1527,7 @@ def _check_crypto_sniper_1h_long(ctx_1h):
     atr_val = last_4h.get('ATRr_14', last_4h.get('ATR_14')) if last_4h is not None else None
     if atr_val is None or pd.isna(atr_val):
         atr_val = current_price * config.BEAR_HUNTER_DEFAULT_ATR_MULT
-    sl_long = current_price - (atr_val * 2.75)
+    sl_long = current_price - (atr_val * 1.25)
     sl_long = apply_5x_sl_cap(sl_long, current_price, ctx_1h)
     _tp_sn_long = current_price + config.BEAR_HUNTER_TP_RR * (current_price - sl_long)
     _rr_sn_long = abs(_tp_sn_long - current_price) / max(abs(current_price - sl_long), 1e-8)
@@ -1628,7 +1628,7 @@ def _check_crypto_sniper_1h_short(ctx_1h):
     
     sl_short = min(bbu * config.CRYPTO_SQUEEZE_SHORT_SL_BBU_MULT, current_price * config.CRYPTO_SQUEEZE_SHORT_SL_MAX_MULT)
     sl_short = apply_5x_sl_cap(sl_short, current_price, ctx_1h)
-    _tp_sn_short = current_price - 1.75 * (sl_short - current_price)
+    _tp_sn_short = current_price - 2.25 * (sl_short - current_price)
     _rr_sn_short = abs(_tp_sn_short - current_price) / max(abs(sl_short - current_price), 1e-8)
     
     is_nan_ind = (pd.isna(last_1h_s.get('volume', float('nan'))) or pd.isna(current_price))
