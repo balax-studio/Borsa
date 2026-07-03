@@ -6,12 +6,16 @@ from dotenv import load_dotenv
 logger = logging.getLogger("quant_bot.ai_commentary")
 
 load_dotenv()
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "gsk_e7XOKz3f10" + "BGO64VUs4BWGdy" + "b3FYDCOlRBGVRU" + "Fx0UyVMlVh8K0L")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+if not GROQ_API_KEY:
+    logger.warning("GROQ_API_KEY environment variable is not set. AI commentary will be skipped.")
 GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 TEXT_MODEL = "llama-3.3-70b-versatile"
 
 async def get_ai_commentary(signals, chart_path=None, df_4h=None):
+    if not GROQ_API_KEY:
+        return None
     if not signals:
         return None
         
@@ -86,23 +90,18 @@ async def get_ai_commentary(signals, chart_path=None, df_4h=None):
 
         prompt += (
             "KESİN KURALLAR VE ANALİZ YAKLAŞIMI:\n"
-            "1. Sabit Kuralları Bırak: \"ADX 20'nin altındaysa kesinlikle işlem yapılmaz\" veya \"RSI 70'in üzerindeyse kesin düşer\" gibi amatör kalıpları unut. Verileri bir bütün olarak değerlendir.\n"
-            "2. Bağlamı (Terrain) Anla: Önce piyasanın genel durumunu analiz et (Trend mi var? Yoksa yatay/ranging mi?). İndikatörleri bu bağlama göre yorumla.\n"
-            "3. Çift Yönlü Düşünce (Chain of Thought): Hangi verilerin sinyali desteklediğini ve hangi verilerin çeliştiğini dürüstçe tart. Hacim (CMF/OBV) ve Momentum uyumuna özellikle dikkat et.\n"
-            "4. Objektif ve Cesur Ol: Her küçük pürüzde korkup \"BEKLE\" kararı verme. Risk/Ödül oranı iyiyse ve genel konjonktür destekliyorsa, risk al ve \"İŞLEME GİR\" de.\n"
-            "5. Objektif Skorlama (0-100):\n"
-            "   - 0-39: Sinyal çok zayıf veya çelişkili. (Karar: BEKLE)\n"
-            "   - 40-59: Ortalama sinyal, bazı riskler var ama potansiyel taşıyor. (Karar: BEKLE veya düşük riskli İŞLEME GİR)\n"
-            "   - 60-79: Güçlü ve onaylanmış sinyal. (Karar: İŞLEME GİR)\n"
-            "   - 80-100: Mükemmel uyum, yüksek olasılıklı işlem. (Karar: İŞLEME GİR)\n\n"
+            "1. Dış Kaynaklardan Tamamen Bağımsız Ol: Yalnızca sana verilen teknik indikatör verilerine, gerekçelere ve son 15 mumluk fiyat tablosuna dayanarak objektif bir şekilde yorum yap. Dışarıdan ekstra bilgi uydurma.\n"
+            "2. Kısa ve Öz Tut: Analizini ve kanıtlarını son derece kısa, net ve öz tut (toplamda en fazla 3-4 cümle).\n"
+            "3. Çift Yönlü Düşünce: Hangi verilerin sinyali desteklediğini ve hangilerinin çeliştiğini dürüstçe değerlendir. Hacim ve momentum uyumunu gözet.\n"
+            "4. Objektif Skorlama (0-100):\n"
+            "   - 0-49: Sinyal zayıf veya çelişkili. (Karar: İŞLEME GİRME)\n"
+            "   - 50-100: Güçlü, tutarlı veya makul risk/ödül oranına sahip sinyal. (Karar: İŞLEME GİR)\n\n"
             "ÇIKTI FORMATI: Analizini yaparken aşağıdaki şablonu KESİNLİKLE bozmadan kullan. Başka metin ekleme:\n\n"
             "🤖 **[Varlık Adı]**\n"
-            "🧠 **Piyasa Bağlamı:** [Trend mi yatay mı? Genel durum nedir?]\n"
-            "✅ **Destekleyen Kanıtlar:** [Sinyali güçlendiren faktörler]\n"
-            "⚠️ **Riskler/Çelişkiler:** [Sinyali zayıflatan faktörler]\n"
+            "🧠 **Analiz:** [1-2 cümlelik teknik bağlam, destekleyen/çelişen kanıtlar]\n"
             "Skor: [0-100]\n"
-            "Karar: [İŞLEME GİR veya BEKLE]\n"
-            "Neden: [Tüm analizin tek cümlelik özeti]"
+            "Karar: [İŞLEME GİR veya İŞLEME GİRME]\n"
+            "Neden: [Tüm kararın tek cümlelik özeti]"
         )
 
         headers = {

@@ -10,6 +10,10 @@ import warnings
 # pandas hatalarını gizle
 warnings.filterwarnings("ignore")
 
+import sys
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # ══════════════════════════════════════════════════════════════════
 # RENK KODLARI (X-Ray Loglaması için)
 # ══════════════════════════════════════════════════════════════════

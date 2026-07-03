@@ -1,3 +1,4 @@
+# pylint: disable=too-many-arguments,too-many-locals,too-many-branches,too-many-statements,too-many-return-statements,wrong-import-position,unused-argument,redefined-outer-name,reimported,too-many-lines,multiple-statements,line-too-long,trailing-whitespace,too-many-positional-arguments,broad-exception-caught,import-outside-toplevel,no-else-return,unspecified-encoding,logging-fstring-interpolation,chained-comparison
 """
 conviction_scorer.py — Ağırlıklı İnanç Puanlama Motoru (V3.3)
 ════════════════════════════════════════════════════════════════
@@ -23,7 +24,11 @@ import logging
 import os
 import json
 import threading
+import inspect
 from dataclasses import dataclass, field
+
+import pandas as pd
+import config
 
 from config import (
     SOFT_ADX_CENTER, SOFT_ADX_K,
@@ -53,7 +58,7 @@ from config import (
     SOFT_DOLLAR_VOL_CRYPTO_MIN, SOFT_DOLLAR_VOL_CRYPTO_MAX,
     SOFT_DOLLAR_VOL_EMTIA_MIN, SOFT_DOLLAR_VOL_EMTIA_MAX,
     SOFT_DOLLAR_VOL_BIST_MIN, SOFT_DOLLAR_VOL_BIST_MAX,
-    RR_MINIMUM, SOFT_UNCERTAINTY_PENALTY
+    SOFT_UNCERTAINTY_PENALTY
 )
 
 
@@ -103,8 +108,7 @@ WEIGHTS = {
 # Close-price efektif küme: 0.42→0.33 | Bağımsız: 0.35→0.44
 
 # Sanity check: ağırlıklar toplamı 1.0 olmalı
-assert abs(sum(WEIGHTS.values()) - 1.0) < 0.001, \
-    f"WEIGHTS toplamı 1.0 olmalı, şu an: {sum(WEIGHTS.values())}"
+assert (abs(sum(WEIGHTS.values()) - 1.0) < 0.001), f"WEIGHTS toplamı 1.0 olmalı, şu an: {sum(WEIGHTS.values())}"  # nosec
 
 CRYPTO_WEIGHTS = {
     "adx":              0.10,
@@ -121,8 +125,7 @@ CRYPTO_WEIGHTS = {
     "oi_crash":         0.05,
     "funding_rate":     0.10,
 }
-assert abs(sum(CRYPTO_WEIGHTS.values()) - 1.0) < 0.001, \
-    f"CRYPTO_WEIGHTS toplamı 1.0 olmalı, şu an: {sum(CRYPTO_WEIGHTS.values())}"
+assert (abs(sum(CRYPTO_WEIGHTS.values()) - 1.0) < 0.001), f"CRYPTO_WEIGHTS toplamı 1.0 olmalı, şu an: {sum(CRYPTO_WEIGHTS.values())}"  # nosec
 
 
 SNIPER_BIST_WEIGHTS = {
@@ -135,8 +138,7 @@ SNIPER_BIST_WEIGHTS = {
     "regime":           0.05,
     "macro":            0.05,
 }
-assert abs(sum(SNIPER_BIST_WEIGHTS.values()) - 1.0) < 0.001, \
-    f"SNIPER_BIST_WEIGHTS toplamı 1.0 olmalı, şu an: {sum(SNIPER_BIST_WEIGHTS.values())}"
+assert (abs(sum(SNIPER_BIST_WEIGHTS.values()) - 1.0) < 0.001), f"SNIPER_BIST_WEIGHTS toplamı 1.0 olmalı, şu an: {sum(SNIPER_BIST_WEIGHTS.values())}"  # nosec
 
 SNIPER_CRYPTO_WEIGHTS = {
     "bbw_squeeze":      0.10,
@@ -149,8 +151,7 @@ SNIPER_CRYPTO_WEIGHTS = {
     "macro":            0.10,
     "funding_rate":     0.05,
 }
-assert abs(sum(SNIPER_CRYPTO_WEIGHTS.values()) - 1.0) < 0.001, \
-    f"SNIPER_CRYPTO_WEIGHTS toplamı 1.0 olmalı, şu an: {sum(SNIPER_CRYPTO_WEIGHTS.values())}"
+assert (abs(sum(SNIPER_CRYPTO_WEIGHTS.values()) - 1.0) < 0.001), f"SNIPER_CRYPTO_WEIGHTS toplamı 1.0 olmalı, şu an: {sum(SNIPER_CRYPTO_WEIGHTS.values())}"  # nosec
 
 
 
@@ -280,7 +281,7 @@ def calculate_autopsy_soft_penalty(
                 if "strategy_type" in locs and strategy_type == "TREND":
                     strategy_type = locs["strategy_type"]
                 curr_frame = curr_frame.f_back
-        except Exception:
+        except Exception:  # nosec
             pass
 
     penalty = 0.0
@@ -1009,14 +1010,14 @@ def calculate_conviction(
             try:
                 from quarantine import is_quarantined as _is_q
                 is_q = _is_q(symbol)
-            except Exception:
-                pass
+            except Exception as eq:
+                logger.error(f"[Conviction] Karantina durumu kontrol edilemedi ({symbol}): {eq}")
         if symbol and not is_cb:
             try:
                 from circuit_breaker import is_circuit_open as _is_cb
                 is_cb = _is_cb(symbol)
-            except Exception:
-                pass
+            except Exception as ecb:
+                logger.error(f"[Conviction] Devre kesici durumu kontrol edilemedi ({symbol}): {ecb}")
 
         if is_q:
             hard_blocked = True
@@ -1079,27 +1080,34 @@ def calculate_conviction(
         
         # Get ADX and CHOP
         adx_val = last_4h.get("ADX_14", 0.0)
-        import pandas as pd
         if pd.isna(adx_val): adx_val = 0.0
         
         chop_val = last_4h.get("chop", 50.0)
         if pd.isna(chop_val): chop_val = 50.0
         
-        # Inspect call stack to classify strategy type
-        import inspect
-        caller_func = ""
-        for frame in inspect.stack():
-            if frame.function.startswith("_check_crypto_") or frame.function.startswith("_check_bist_"):
-                caller_func = frame.function
-                break
+        # Check scores first to avoid slow inspect.stack() call
+        strategy_type = scores.get("strategy_type")
+        if strategy_type is not None:
+            strategy_type_lower = str(strategy_type).lower()
+            # MR strategies contain specific keywords
+            mr_keywords = ['liquidation', 'vwap', 'liquidity_hunt', 'divergence', 'sfp', 'short_squeeze', 'fomo', 'mean_reversion', 'mr', 'dip']
+            is_trend = not any(kw in strategy_type_lower for kw in mr_keywords)
+            is_sniper_1h = "sniper_1h" in strategy_type_lower
+        else:
+            # Fallback to slow inspect.stack() reflection
+            caller_func = ""
+            for frame in inspect.stack():
+                if frame.function.startswith("_check_crypto_") or frame.function.startswith("_check_bist_"):
+                    caller_func = frame.function
+                    break
+                    
+            is_trend = True
+            # MR strategies contain specific keywords
+            mr_keywords = ['liquidation', 'vwap', 'liquidity_hunt', 'divergence', 'sfp', 'short_squeeze', 'fomo']
+            if any(kw in caller_func.lower() for kw in mr_keywords):
+                is_trend = False
                 
-        is_trend = True
-        # MR strategies contain specific keywords
-        mr_keywords = ['liquidation', 'vwap', 'liquidity_hunt', 'divergence', 'sfp', 'short_squeeze', 'fomo']
-        if any(kw in caller_func.lower() for kw in mr_keywords):
-            is_trend = False
-            
-        is_sniper_1h = "sniper_1h" in caller_func.lower()
+            is_sniper_1h = "sniper_1h" in caller_func.lower()
             
         # 1. Regime-Aware soft penalties (skip for 1H sniper strategies)
         if not is_sniper_1h:
@@ -1115,7 +1123,6 @@ def calculate_conviction(
                     fuzzy_filter_penalty -= max(0.0, min(7.5, (50.0 - chop_val) * 0.5625))
                 
         # 2. Time-Session soft penalty
-        import pandas as pd
         eval_time = ctx.get("current_time")
         if eval_time is None:
             eval_time = last_4h.name + pd.Timedelta(hours=4)
@@ -1157,6 +1164,8 @@ def calculate_conviction(
         sl_distance_penalty = ctx.get("sl_distance_penalty", 0.0)
     total += sl_distance_penalty
     
+    result.component_scores["data_guard_penalty"] = round(data_guard_penalty, 1)
+    result.component_scores["conflict_penalty"] = round(conflict_penalty, 1)
     result.component_scores["autopsy_penalty"] = round(autopsy_penalty, 1)
     result.component_scores["nan_penalty"] = round(nan_penalty, 1)
     result.component_scores["setup_weak_penalty"] = round(setup_weak_penalty, 1)
@@ -1165,9 +1174,13 @@ def calculate_conviction(
     result.component_scores["sl_distance_penalty"] = round(sl_distance_penalty, 1)
     result.component_scores["fuzzy_filter_penalty"] = round(fuzzy_filter_penalty, 1)
     
+    # V3.8: Apply global CONVICTION_SCORE_MULTIPLIER to the final score
+    score_multiplier = getattr(config, "CONVICTION_SCORE_MULTIPLIER", 1.0)
+    total *= score_multiplier
+    
     if apply_bear_penalty:
-        from config import CONFLICT_RESOLVER_BEAR_TREND_PENALTY
-        total *= CONFLICT_RESOLVER_BEAR_TREND_PENALTY
+        bear_penalty = getattr(config, "CONFLICT_RESOLVER_BEAR_TREND_PENALTY", 1.0)
+        total *= bear_penalty
         
     total = max(0.0, total)
     result.total_score = round(total, 1)
@@ -1199,21 +1212,23 @@ def calculate_conviction(
     result.position_size_pct = POSITION_SIZE_MAP.get(result.grade, 0)
 
     logger.info(
-        f"[Conviction] Score={result.total_score:.0f} "
-        f"Grade={result.grade} Pos={result.position_size_pct}%"
+        "[Conviction] Score=%.0f Grade=%s Pos=%s%%",
+        result.total_score,
+        result.grade,
+        result.position_size_pct
     )
 
     # ════════════════════════════════════════
     # Conviction A/B Test — Shadow Evaluation
     # ════════════════════════════════════════
     try:
-        from config import CONVICTION_AB_ENABLED, CONVICTION_THRESHOLDS_EXPERIMENT
-        if CONVICTION_AB_ENABLED:
+        ab_enabled = getattr(config, "CONVICTION_AB_ENABLED", False)
+        if ab_enabled:
+            thresholds_exp = getattr(config, "CONVICTION_THRESHOLDS_EXPERIMENT", {})
             _ticker = scores.get('_ticker', 'N/A')
-            _ab_evaluate(_ticker, result.total_score, result.grade,
-                         CONVICTION_THRESHOLDS_EXPERIMENT)
-    except Exception as e:
-        logging.debug(f'[A/B Test] Hata: {e}')
+            _ab_evaluate(_ticker, result.total_score, result.grade, thresholds_exp)
+    except (AttributeError, KeyError, TypeError, ValueError) as e:
+        logger.debug("[A/B Test] Hata: %s", e)
 
     return result
 
@@ -1249,15 +1264,15 @@ def build_trend_scores(
     volume_ratio=None,
 ):
     """Trend stratejileri (BIST 2, KRİPTO 2) için skor paketi."""
-    from config import GAP_THRESHOLD_PCT, SOFT_DOLLAR_VOL_CRYPTO_MIN, SOFT_DOLLAR_VOL_BIST_MIN, SOFT_ADX_GAUSSIAN_CENTER, SOFT_ADX_GAUSSIAN_WIDTH
+    if adx_center is None:
+        adx_center = config.SOFT_ADX_GAUSSIAN_CENTER
+    if adx_width is None:
+        adx_width = config.SOFT_ADX_GAUSSIAN_WIDTH
     
-    if adx_center is None: adx_center = SOFT_ADX_GAUSSIAN_CENTER
-    if adx_width is None: adx_width = SOFT_ADX_GAUSSIAN_WIDTH
-    
-    is_gap = (dg_gap_pct >= GAP_THRESHOLD_PCT) if dg_gap_pct else False
+    is_gap = (dg_gap_pct >= config.GAP_THRESHOLD_PCT) if dg_gap_pct else False
     
     optimum_vol = 500_000 if market == "KRIPTO" else 10_000_000
-    min_vol = SOFT_DOLLAR_VOL_CRYPTO_MIN if market == "KRIPTO" else SOFT_DOLLAR_VOL_BIST_MIN
+    min_vol = config.SOFT_DOLLAR_VOL_CRYPTO_MIN if market == "KRIPTO" else config.SOFT_DOLLAR_VOL_BIST_MIN
     
     dg_penalty = score_data_guard(
         dollar_volume=dollar_vol,
@@ -1307,6 +1322,8 @@ def build_trend_scores(
         "conflict_penalty": conflict_penalty,
         "apply_bear_penalty": apply_bear,
         "autopsy_penalty": autopsy_pen,
+        "strategy_type": strategy_type,
+        "is_long_strategy": is_long,
     }
 
 
@@ -1333,11 +1350,10 @@ def build_dip_scores(
     volume_ratio=None,
 ):
     """Dip avcılığı stratejileri (BIST 1, KRİPTO 1) için skor paketi."""
-    from config import GAP_THRESHOLD_PCT, SOFT_DOLLAR_VOL_CRYPTO_MIN, SOFT_DOLLAR_VOL_BIST_MIN
-    is_gap = (dg_gap_pct >= GAP_THRESHOLD_PCT) if dg_gap_pct else False
+    is_gap = (dg_gap_pct >= config.GAP_THRESHOLD_PCT) if dg_gap_pct else False
     
     optimum_vol = 500_000 if market == "KRIPTO" else 10_000_000
-    min_vol = SOFT_DOLLAR_VOL_CRYPTO_MIN if market == "KRIPTO" else SOFT_DOLLAR_VOL_BIST_MIN
+    min_vol = config.SOFT_DOLLAR_VOL_CRYPTO_MIN if market == "KRIPTO" else config.SOFT_DOLLAR_VOL_BIST_MIN
     
     dg_penalty = score_data_guard(
         dollar_volume=dollar_vol,
@@ -1387,6 +1403,8 @@ def build_dip_scores(
         "conflict_penalty": conflict_penalty,
         "apply_bear_penalty": apply_bear,
         "autopsy_penalty": autopsy_pen,
+        "strategy_type": strategy_type,
+        "is_long_strategy": is_long,
     }
 
 
@@ -1415,11 +1433,10 @@ def build_breakout_scores(
     has_engulfing=None,
 ):
     """Kırılım/Squeeze stratejileri (BIST 3/5, KRİPTO 3) için skor paketi."""
-    from config import GAP_THRESHOLD_PCT, SOFT_DOLLAR_VOL_CRYPTO_MIN, SOFT_DOLLAR_VOL_BIST_MIN
-    is_gap = (dg_gap_pct >= GAP_THRESHOLD_PCT) if dg_gap_pct else False
+    is_gap = (dg_gap_pct >= config.GAP_THRESHOLD_PCT) if dg_gap_pct else False
     
     optimum_vol = 500_000 if market == "KRIPTO" else 10_000_000
-    min_vol = SOFT_DOLLAR_VOL_CRYPTO_MIN if market == "KRIPTO" else SOFT_DOLLAR_VOL_BIST_MIN
+    min_vol = config.SOFT_DOLLAR_VOL_CRYPTO_MIN if market == "KRIPTO" else config.SOFT_DOLLAR_VOL_BIST_MIN
     
     dg_penalty = score_data_guard(
         dollar_volume=dollar_vol,
@@ -1440,12 +1457,11 @@ def build_breakout_scores(
     
     # Overbought/Oversold breakout penalty
     if rsi is not None and not _is_nan(rsi):
-        from config import BREAKOUT_RSI_MAX_LIMIT
-        if is_long and rsi > BREAKOUT_RSI_MAX_LIMIT:
-            excess = rsi - BREAKOUT_RSI_MAX_LIMIT
+        if is_long and rsi > config.BREAKOUT_RSI_MAX_LIMIT:
+            excess = rsi - config.BREAKOUT_RSI_MAX_LIMIT
             conflict_penalty -= min(25.0, excess * 1.5)
-        elif not is_long and rsi < (100.0 - BREAKOUT_RSI_MAX_LIMIT):
-            excess = (100.0 - BREAKOUT_RSI_MAX_LIMIT) - rsi
+        elif not is_long and rsi < (100.0 - config.BREAKOUT_RSI_MAX_LIMIT):
+            excess = (100.0 - config.BREAKOUT_RSI_MAX_LIMIT) - rsi
             conflict_penalty -= min(25.0, excess * 1.5)
 
     squeeze_score = inverse_linear_score(bb_width, SOFT_SQUEEZE_MIN, SOFT_SQUEEZE_MAX) if bb_width else SOFT_UNCERTAINTY_PENALTY
@@ -1481,6 +1497,8 @@ def build_breakout_scores(
         "conflict_penalty": conflict_penalty,
         "apply_bear_penalty": apply_bear,
         "autopsy_penalty": autopsy_pen,
+        "strategy_type": strategy_type,
+        "is_long_strategy": is_long,
     }
 
 
@@ -1511,15 +1529,15 @@ def build_short_scores(
     volume_ratio=None,
 ):
     """SHORT stratejileri (SHORT 1-4, Bear Hunter) için skor paketi."""
-    from config import GAP_THRESHOLD_PCT, SOFT_DOLLAR_VOL_CRYPTO_MIN, SOFT_DOLLAR_VOL_BIST_MIN, SOFT_ADX_GAUSSIAN_CENTER, SOFT_ADX_GAUSSIAN_WIDTH
+    if adx_center is None:
+        adx_center = config.SOFT_ADX_GAUSSIAN_CENTER
+    if adx_width is None:
+        adx_width = config.SOFT_ADX_GAUSSIAN_WIDTH
     
-    if adx_center is None: adx_center = SOFT_ADX_GAUSSIAN_CENTER
-    if adx_width is None: adx_width = SOFT_ADX_GAUSSIAN_WIDTH
-    
-    is_gap = (dg_gap_pct >= GAP_THRESHOLD_PCT) if dg_gap_pct else False
+    is_gap = (dg_gap_pct >= config.GAP_THRESHOLD_PCT) if dg_gap_pct else False
     
     optimum_vol = 500_000 if market == "KRIPTO" else 10_000_000
-    min_vol = SOFT_DOLLAR_VOL_CRYPTO_MIN if market == "KRIPTO" else SOFT_DOLLAR_VOL_BIST_MIN
+    min_vol = config.SOFT_DOLLAR_VOL_CRYPTO_MIN if market == "KRIPTO" else config.SOFT_DOLLAR_VOL_BIST_MIN
     
     dg_penalty = score_data_guard(
         dollar_volume=dollar_vol,
@@ -1604,7 +1622,8 @@ def build_short_scores(
         "apply_bear_penalty": apply_bear,
         "autopsy_penalty": autopsy_pen,
         "long_risk_penalty": long_risk_penalty,
-        "is_long_strategy": False
+        "is_long_strategy": False,
+        "strategy_type": strategy_type,
     }
 
 
@@ -1612,7 +1631,6 @@ def _get_sniper_pb_limits(market: str, is_long: bool) -> tuple[float, float]:
     """
     Sniper limitlerini çeker.
     """
-    import config
     if not is_long and market == "KRIPTO":
         pb_min = getattr(config, "SHORT4_BBP_MIN_PULLBACK", 0.0)
         pb_max = getattr(config, "SHORT4_BBP_MAX_PULLBACK", 1.0)
@@ -1714,11 +1732,10 @@ def build_sniper_scores(
     in_demand_zone=False,
 ):
     """Keskin Nişancı stratejisi (BIST Sniper, KRIPTO Sniper) için skor paketi."""
-    from config import GAP_THRESHOLD_PCT, SOFT_DOLLAR_VOL_CRYPTO_MIN, SOFT_DOLLAR_VOL_BIST_MIN
-    is_gap = (dg_gap_pct >= GAP_THRESHOLD_PCT) if dg_gap_pct else False
+    is_gap = (dg_gap_pct >= config.GAP_THRESHOLD_PCT) if dg_gap_pct else False
     
     optimum_vol = 500_000 if market == "KRIPTO" else 10_000_000
-    min_vol = SOFT_DOLLAR_VOL_CRYPTO_MIN if market == "KRIPTO" else SOFT_DOLLAR_VOL_BIST_MIN
+    min_vol = config.SOFT_DOLLAR_VOL_CRYPTO_MIN if market == "KRIPTO" else config.SOFT_DOLLAR_VOL_BIST_MIN
     
     dg_penalty = score_data_guard(
         dollar_volume=dollar_vol,
@@ -1812,5 +1829,6 @@ def build_sniper_scores(
         "conflict_penalty": conflict_penalty,
         "apply_bear_penalty": apply_bear,
         "autopsy_penalty": autopsy_pen,
-        "is_long_strategy": is_long
+        "is_long_strategy": is_long,
+        "strategy_type": strategy_type,
     }

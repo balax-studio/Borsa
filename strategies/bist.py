@@ -106,7 +106,7 @@ def _check_bist_1_dip_hunter(ctx):
         if _conv.grade in (CONVICTION_STRONG, CONVICTION_MEDIUM, CONVICTION_WATCH):
             signals.append({
                 "raw_indicators": _extract_raw_indicators(raw_vars),
-                "ticker": symbol, "market": "BIST", "strategy": "BIST 1: DİP AVCILIĞI", "signal": "AL",
+                "ticker": symbol, "market": "BIST", "strategy": "BIST LONG 1: DİP AVCILIĞI", "signal": "AL",
                 "entry_price": current_price, "sl": sl, "tp": tp,
                 "conviction_score": _conv.total_score, "conviction_grade": _conv.grade,
                 "conviction_details": _conv.component_scores, "position_size_pct": _conv.position_size_pct,
@@ -170,7 +170,7 @@ def _check_bist_2_trend_following(ctx):
         if _conv2.grade in (CONVICTION_STRONG, CONVICTION_MEDIUM, CONVICTION_WATCH):
             signals.append({
                 "raw_indicators": _extract_raw_indicators(raw_vars),
-                "ticker": symbol, "market": "BIST", "strategy": "BIST 2: TREND TAKİBİ", "signal": "AL",
+                "ticker": symbol, "market": "BIST", "strategy": "BIST LONG 2: TREND TAKİBİ", "signal": "AL",
                 "entry_price": current_price, "sl": sl, "tp": _tp2,
                 "conviction_score": _conv2.total_score, "conviction_grade": _conv2.grade,
                 "conviction_details": _conv2.component_scores, "position_size_pct": _conv2.position_size_pct,
@@ -274,7 +274,7 @@ def _check_bist_3_squeeze_breakout(ctx):
     if _conv3.grade in (CONVICTION_STRONG, CONVICTION_MEDIUM, CONVICTION_WATCH):
         signals.append({
             "raw_indicators": _extract_raw_indicators(raw_vars),
-            "ticker": symbol, "market": "BIST", "strategy": "BIST 3: SQUEEZE KIRILIMI", "signal": "AL",
+            "ticker": symbol, "market": "BIST", "strategy": "BIST LONG 3: SQUEEZE KIRILIMI", "signal": "AL",
             "entry_price": current_price, "sl": sl, "tp": _tp3,
             "conviction_score": _conv3.total_score, "conviction_grade": _conv3.grade,
             "conviction_details": _conv3.component_scores, "position_size_pct": _conv3.position_size_pct,
@@ -341,7 +341,7 @@ def _check_bist_4_sniper_ote(ctx):
                         signals.append({
                             "raw_indicators": _extract_raw_indicators(raw_vars),
                             "ticker": symbol, "market": "BIST",
-                            "strategy": "BIST 4: KESKİN NİŞANCI (OTE)", "signal": "AL",
+                            "strategy": "BIST LONG 4: KESKİN NİŞANCI (OTE)", "signal": "AL",
                             "entry_price": current_price, "sl": sl, "tp": tp,
                             "conviction_score": _conv4.total_score, "conviction_grade": _conv4.grade,
                             "conviction_details": _conv4.component_scores, "position_size_pct": _conv4.position_size_pct,
@@ -433,7 +433,7 @@ def _check_bist_5_vol_squeeze_long(ctx, prev_bbu_1d, guarded_vol_sma):
         
     return {
         "raw_indicators": _extract_raw_indicators(raw_vars),
-        "ticker": symbol, "market": "BIST", "strategy": "BIST 5: HACİMLİ KIRILIM", "signal": "AL",
+        "ticker": symbol, "market": "BIST", "strategy": "BIST LONG 5: HACİMLİ KIRILIM", "signal": "AL",
         "entry_price": current_price, "sl": sl, "tp": _tp5u,
         "conviction_score": _conv5u.total_score, "conviction_grade": _conv5u.grade,
         "conviction_details": _conv5u.component_scores, "position_size_pct": _conv5u.position_size_pct,
@@ -495,7 +495,7 @@ def _check_bist_5_vol_squeeze_short(ctx, prev_bbl_1d, guarded_vol_sma):
         
     return {
         "raw_indicators": _extract_raw_indicators(raw_vars),
-        "ticker": symbol, "market": "BIST", "strategy": "BIST 5: HACİMLİ KIRILIM", "signal": "SAT",
+        "ticker": symbol, "market": "BIST", "strategy": "BIST SHORT 5: HACİMLİ KIRILIM", "signal": "SAT",
         "entry_price": current_price, "sl": sl, "tp": _tp5d,
         "conviction_score": _conv5d.total_score, "conviction_grade": _conv5d.grade,
         "conviction_details": _conv5d.component_scores, "position_size_pct": _conv5d.position_size_pct,
@@ -575,7 +575,7 @@ def _check_bist_6_rs(ctx):
                 if _conv6.grade in (CONVICTION_STRONG, CONVICTION_MEDIUM, CONVICTION_WATCH):
                     signals.append({
                         "raw_indicators": _extract_raw_indicators(raw_vars),
-                        "ticker": symbol, "market": "BIST", "strategy": "BIST 6: GÖRECELİ GÜÇ RADARI (RS)", "signal": "AL",
+                        "ticker": symbol, "market": "BIST", "strategy": "BIST LONG 6: GÖRECELİ GÜÇ RADARI (RS)", "signal": "AL",
                         "entry_price": current_price, "sl": sl, "tp": _tp6,
                         "conviction_score": _conv6.total_score, "conviction_grade": _conv6.grade,
                         "conviction_details": _conv6.component_scores, "position_size_pct": _conv6.position_size_pct,
@@ -668,7 +668,7 @@ def _check_bist_7_vwap(ctx):
     if _conv7.grade in (CONVICTION_STRONG, CONVICTION_MEDIUM, CONVICTION_WATCH):
         signals.append({
             "raw_indicators": _extract_raw_indicators(raw_vars),
-            "ticker": symbol, "market": "BIST", "strategy": "BIST 7: VWAP KURUMSAL MIKNATISI", "signal": "AL",
+            "ticker": symbol, "market": "BIST", "strategy": "BIST LONG 7: VWAP KURUMSAL MIKNATISI", "signal": "AL",
             "entry_price": current_price, "sl": sl, "tp": _tp7,
             "conviction_score": _conv7.total_score, "conviction_grade": _conv7.grade,
             "conviction_details": _conv7.component_scores, "position_size_pct": _conv7.position_size_pct,
@@ -723,7 +723,7 @@ def _check_bist_8_obv(ctx):
             if _conv8.grade in (CONVICTION_STRONG, CONVICTION_MEDIUM, CONVICTION_WATCH):
                 signals.append({
                     "raw_indicators": _extract_raw_indicators(raw_vars),
-                    "ticker": symbol, "market": "BIST", "strategy": "BIST 8: SESSİZ BİRİKİM RADARI (OBV)", "signal": "AL",
+                    "ticker": symbol, "market": "BIST", "strategy": "BIST LONG 8: SESSİZ BİRİKİM RADARI (OBV)", "signal": "AL",
                     "entry_price": current_price, "sl": sl, "tp": _tp8,
                     "conviction_score": _conv8.total_score, "conviction_grade": _conv8.grade,
                     "conviction_details": _conv8.component_scores, "position_size_pct": _conv8.position_size_pct,
@@ -836,7 +836,7 @@ def _check_bist_10_sniper(ctx):
         signals.append({
             "raw_indicators": _extract_raw_indicators(raw_vars),
             "ticker": symbol, "market": "BIST",
-            "strategy": "BIST 10: KESKİN NİŞANCI (SNIPER)", "signal": "AL",
+            "strategy": "BIST LONG 10: KESKİN NİŞANCI (SNIPER)", "signal": "AL",
             "entry_price": current_price, "sl": sl, "tp": _tp_sn,
             "conviction_score": _conv_sn.total_score, "conviction_grade": _conv_sn.grade,
             "conviction_details": _conv_sn.component_scores, "position_size_pct": _conv_sn.position_size_pct,
@@ -919,7 +919,7 @@ def _build_bist11_signal(ctx, pattern_name, support_reason, vol_ratio, avg_vol_p
         raw_vars = locals()
         return {
             "raw_indicators": _extract_raw_indicators(raw_vars),
-            "ticker": symbol, "market": "BIST", "strategy": "BIST 11: MUM FORMASYONLARI (CANDLESTICK)", "signal": "AL",
+            "ticker": symbol, "market": "BIST", "strategy": "BIST LONG 11: MUM FORMASYONLARI (CANDLESTICK)", "signal": "AL",
             "entry_price": current_price, "sl": sl, "tp": tp,
             "conviction_score": _conv_cand.total_score, "conviction_grade": _conv_cand.grade,
             "conviction_details": _conv_cand.component_scores, "position_size_pct": _conv_cand.position_size_pct,
@@ -1036,7 +1036,7 @@ def _build_bist12_signal(ctx, pattern_name, pattern_details, is_weak=False):
         raw_vars = locals()
         return {
             "raw_indicators": _extract_raw_indicators(raw_vars),
-            "ticker": symbol, "market": "BIST", "strategy": "BIST 12: GRAFİK FORMASYONLARI (CHART PATTERNS)", "signal": "AL",
+            "ticker": symbol, "market": "BIST", "strategy": "BIST LONG 12: GRAFİK FORMASYONLARI (CHART PATTERNS)", "signal": "AL",
             "entry_price": current_price, "sl": sl, "tp": tp,
             "conviction_score": _conv_pattern.total_score, "conviction_grade": _conv_pattern.grade,
             "conviction_details": _conv_pattern.component_scores, "position_size_pct": _conv_pattern.position_size_pct,
@@ -1208,7 +1208,7 @@ def _check_orb_long(symbol, current_price, cage_high, cage_low, cage_mid, today_
                 signals.append({
                     "raw_indicators": _extract_raw_indicators(raw_vars),
                     "ticker": symbol, "market": "BIST",
-                    "strategy": "BIST 9: ZAMAN KAFESİ (ORB)", "signal": "AL", "is_day_trade": True,
+                    "strategy": "BIST LONG 9: ZAMAN KAFESİ (ORB)", "signal": "AL", "is_day_trade": True,
                     "entry_price": entry_price, "sl": _sl9u, "tp": _tp9u,
                     "conviction_score": _conv9u.total_score, "conviction_grade": _conv9u.grade,
                     "conviction_details": _conv9u.component_scores, "position_size_pct": _conv9u.position_size_pct,
@@ -1262,7 +1262,7 @@ def _check_orb_short(symbol, current_price, cage_high, cage_low, cage_mid, today
                 signals.append({
                     "raw_indicators": _extract_raw_indicators(raw_vars),
                     "ticker": symbol, "market": "BIST",
-                    "strategy": "BIST 9: ZAMAN KAFESİ (ORB)", "signal": "SAT", "is_day_trade": True,
+                    "strategy": "BIST SHORT 9: ZAMAN KAFESİ (ORB)", "signal": "SAT", "is_day_trade": True,
                     "entry_price": entry_price, "sl": _sl9d, "tp": _tp9d,
                     "conviction_score": _conv9d.total_score, "conviction_grade": _conv9d.grade,
                     "conviction_details": _conv9d.component_scores, "position_size_pct": _conv9d.position_size_pct,

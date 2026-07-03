@@ -4,6 +4,9 @@ import json
 import logging
 import asyncio
 
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
+
 # Setup logging to console only for diagnostics
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("system_check")
@@ -82,10 +85,15 @@ async def main():
     print("\n🌐 [4] Veri Kaynağı (yfinance) Bağlantı Kontrolü:")
     try:
         import yfinance as yf
+        import pandas as pd
         test_ticker = "THYAO.IS"
         df = yf.download(test_ticker, period="1d", interval="1d", progress=False)
         if not df.empty:
-            print(f"✅ yfinance bağlantısı başarılı. {test_ticker} son fiyat: {df['Close'].iloc[-1]:.2f}")
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.droplevel(1)
+            df.columns = [c.lower() for c in df.columns]
+            price = float(df['close'].iloc[-1])
+            print(f"✅ yfinance bağlantısı başarılı. {test_ticker} son fiyat: {price:.2f}")
         else:
             print("❌ yfinance boş veri döndürdü.")
     except Exception as e:

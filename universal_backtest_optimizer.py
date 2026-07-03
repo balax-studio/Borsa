@@ -4,8 +4,12 @@ import pandas as pd
 import ta
 import numpy as np
 import warnings
+import sys
 
 warnings.filterwarnings('ignore')
+
+if sys.stdout.encoding != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")
 
 # Markets
 BIST_SYMBOLS = ["THYAO.IS", "EREGL.IS", "TUPRS.IS", "KCHOL.IS", "ASELS.IS"]

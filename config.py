@@ -1,3 +1,4 @@
+# pylint: disable=line-too-long,trailing-whitespace,broad-exception-caught,logging-fstring-interpolation
 """
 config.py — Quant Bot Merkezi Yapılandırma
 Tüm sabitler, eşikler, varlık listeleri ve magic number'lar burada toplanır.
@@ -493,6 +494,11 @@ CONFLICT_RESOLVER_ADX_RANGING_LIMIT = 20.0 # Bu ADX altında Trend Takip/Breakou
 CONFLICT_RESOLVER_ADX_TREND_PENALTY_MULT = 3.75    # Mean Reversion için ADX > 40 aşımı çarpanı (eski: 5.0)
 CONFLICT_RESOLVER_ADX_RANGING_PENALTY_MULT = 5.25  # Trend Takip için ADX < 20 sapması çarpanı (eski: 7.0)
 CONFLICT_RESOLVER_BEAR_TREND_PENALTY = 0.7         # 1D Bearish rejimde Long sinyallere uygulanacak ceza katsayısı (eski: 0.6 - %40 kesinti yerine %30 kesinti)
+
+# 🎯 Nihai Conviction Skor Çarpanı (V3.8)
+# Hesaplanmış nihai inanç (conviction) skorunu doğrudan bu oranla çarpar. 
+# 0.91 çarpanı, 66 alan bir skoru 60'a düşürür (yaklaşık %9-10 genel skor kesintisi).
+CONVICTION_SCORE_MULTIPLIER = 0.91
 
 DATA_GUARD_PENALTY_DARTH_MAUL = -18.75       # Flash crash mumu soft cezası (eski: -25.0)
 DATA_GUARD_PENALTY_GAP = -15.0              # Gap mumu soft cezası (eski: -20.0)

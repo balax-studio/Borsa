@@ -6,6 +6,7 @@ import unittest
 import numpy as np
 import sys
 import os
+from unittest.mock import patch
 
 # PYTHONPATH ayarı
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -111,6 +112,23 @@ class TestNaNPrevention(unittest.TestCase):
             is_long=True
         )
         self.assertFalse(blocked)
+
+    def test_conviction_score_multiplier_math(self):
+        """İnanç skoru çarpanının (0.91) 66 olan skoru tam 60'a düşürdüğünü doğrula."""
+        # Use single weight to make base score exactly 100.0 before penalties
+        scores = {
+            "adx": 100.0,
+            "autopsy_penalty": -34.0  # Raw score before multiplier is 66.0
+        }
+        custom_weights = {"adx": 1.0}
+        
+        # Override CONVICTION_SCORE_MULTIPLIER dynamically to 0.91 for the test
+        with patch.object(config, "CONVICTION_SCORE_MULTIPLIER", 0.91):
+            result = conviction_scorer.calculate_conviction(scores, weights=custom_weights)
+            # Expect: 66 * 0.91 = 60.06 -> rounds to 60.1
+            self.assertEqual(result.total_score, 60.1)
+            # Autopsy penalty should remain unscaled in component_scores
+            self.assertEqual(result.component_scores.get("autopsy_penalty"), -34.0)
 
 if __name__ == "__main__":
     unittest.main()
