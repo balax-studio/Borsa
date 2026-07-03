@@ -230,25 +230,25 @@ def _check_crypto_2_mega_trend(ctx):
     if not _is_meaningful_volume(last_4h['volume'], guarded_vol_sma, current_price, "KRIPTO"):
         return signals
 
-    btcdom_trend = get_btc_dominance_trend()
+    # --- GOLDEN FILTER INJECTION ---
+    # KRİPTO LONG 2: MEGA TREND TAKİBİ
+    # Filter: Relative_Volume < 6.3000 (+8.00R Improvement)
+    vol_sma = last_4h.get('vol_sma_20', 0)
+    vol = last_4h.get('volume', 0)
+    rel_vol_4h = vol / vol_sma if (pd.notna(vol_sma) and vol_sma > 0) else 1.0
+    if rel_vol_4h >= 6.3000:
+        return signals
 
-    # Golden Filter: CMF < -0.0357 (Relaxed/Removed to increase signals)
-    # cmf = calculate_cmf(df_4h)
-    # if cmf is not None and cmf >= -0.0357:
-    #     return signals
+    btcdom_trend = get_btc_dominance_trend()
 
     atr_val = last_4h.get('ATRr_14', last_4h.get('ATR_14'))
     if atr_val is None or pd.isna(atr_val):
         atr_val = current_price * config.BEAR_HUNTER_DEFAULT_ATR_MULT
-    dynamic_mult = ctx.get("dynamic_atr_mult", ATR_MULTIPLIER_CRYPTO)
-    raw_atr_sl = dynamic_mult * atr_val
-    capped_sl_dist = min(raw_atr_sl, current_price * ATR_CAP_CRYPTO)
-    sl_atr = current_price - capped_sl_dist
-    sl_ema = last_4h.get('EMA_50', current_price) * config.CRYPTO_TREND_SL_EMA_MULT
-    sl = max(sl_atr, sl_ema)
+        
+    sl = current_price - (atr_val * 1.25)
     sl = apply_5x_sl_cap(sl, current_price, ctx)
     sl_dist = abs(current_price - sl)
-    _tp_c2 = current_price + (sl_dist * config.BEAR_HUNTER_TP_RR)
+    _tp_c2 = current_price + (sl_dist * 2.50)
     _rr_c2 = abs(_tp_c2 - current_price) / max(abs(current_price - sl), 1e-8)
     _adx_prev_c2 = df_4h.iloc[-2].get('ADX_14') if len(df_4h) >= 2 else None
     _prev_4h_c2 = df_4h.iloc[-2] if len(df_4h) >= 2 else last_4h
@@ -453,7 +453,7 @@ def _check_crypto_short_1_liquidity_hunt(ctx):
     atr_val = last_4h.get('ATRr_14', last_4h.get('ATR_14'))
     if pd.isna(atr_val): atr_val = current_price * 0.02
 
-    sl = sweep_high + (atr_val * config.ATR_MULTIPLIER_CRYPTO)
+    sl = sweep_high + (atr_val * 1.00)
     sl = apply_5x_sl_cap(sl, current_price, ctx)
     sl_dist = max(sl - current_price, 1e-8)
     tp = current_price - (sl_dist * config.BEAR_HUNTER_TP_RR)
@@ -507,6 +507,12 @@ def _check_crypto_short_2_oi_trap(ctx):
     current_price = ctx['current_price']
     df_4h = ctx['df_4h']
 
+    # --- GOLDEN FILTER INJECTION ---
+    # KRİPTO SHORT 2: OI & TÜREV TUZAĞI
+    # Filter: Vortex_Diff > -0.3613 (+43.00R Improvement)
+    if last_4h.get('Vortex_Diff', 0) <= -0.3613:
+        return signals
+
     supply_zones = detect_supply_zones(df_4h if 'df_4h' in locals() else ctx.get('df_4h'))
     in_supply = is_price_in_supply_zone(current_price, supply_zones)
     funding_rate = get_funding_rate(symbol)
@@ -529,10 +535,10 @@ def _check_crypto_short_2_oi_trap(ctx):
     atr_val = last_4h.get('ATRr_14', last_4h.get('ATR_14'))
     if pd.isna(atr_val): atr_val = current_price * 0.02
 
-    sl = last_4h['high'] + (atr_val * config.ATR_MULTIPLIER_CRYPTO)
+    sl = last_4h['high'] + (atr_val * 1.00)
     sl = apply_5x_sl_cap(sl, current_price, ctx)
     sl_dist = max(sl - current_price, 1e-8)
-    tp = current_price - (sl_dist * config.BEAR_HUNTER_TP_RR)
+    tp = current_price - (sl_dist * 2.25)
     _rr = abs(current_price - tp) / sl_dist
     if _rr < config.CRYPTO_SHORT_MIN_RR:
         return signals
@@ -1405,6 +1411,13 @@ def _check_crypto_7_obv(ctx):
     current_price = ctx["current_price"]
     df_1d = ctx["df_1d"]
     df_4h = ctx.get("df_4h")
+
+    # --- HOURLY BLACKLIST INJECTION ---
+    # Layer 3: Hourly Blacklist [20] (+10.00R Improvement)
+    if df_4h is not None and not df_4h.empty:
+        current_hour = df_4h.index[-1].hour
+        if current_hour == 20:
+            return signals
 
     # --- GOLDEN FILTER INJECTION ---
     # KRİPTO LONG 7: SESSİZ BİRİKİM RADARI (OBV)
