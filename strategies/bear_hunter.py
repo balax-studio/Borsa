@@ -48,11 +48,15 @@ def _check_bear_hunter_1_sfp(symbol, df_4h, current_price, atr_val, funding_note
     
     # --- GOLDEN FILTER INJECTION ---
     # SHORT 1: ZİRVE TUZAĞI (SFP)
-    # Filter: ADX > 24.5540 (+10.00R Improvement)
+    # Filter: ADX > 24.5540 and RSI < 60.4674
     import pandas as pd
     adx_val = df_4h.iloc[-1].get(f'ADX_14')  # using 14 as config.IND_ADX_LENGTH default
     if adx_val is not None and pd.notna(adx_val):
         if adx_val <= 24.5540:
+            return signals
+    rsi_val = df_4h.iloc[-1].get(f'RSI_{config.IND_RSI_LENGTH}')
+    if rsi_val is not None and pd.notna(rsi_val):
+        if rsi_val >= 60.4674:
             return signals
             
     if sfp_found and sfp_candle is not None:
