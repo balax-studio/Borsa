@@ -29,6 +29,7 @@ from indicators import (
 from data_sources import (
     get_crypto_1h_data, get_funding_rate, fetch_crypto_oi_crash,
     get_btc_dominance_trend, check_btc_not_pumping, check_token_unlocks,
+    get_btc_rsi_and_change,
 )
 from .helpers import (
     _extract_raw_indicators, _apply_volume_sma_guard, _is_meaningful_volume,
@@ -1249,6 +1250,15 @@ def _check_crypto_5_vol_squeeze(ctx):
             sq_mid = (sq_candle['high'] + sq_candle['low']) / 2
             ema20_4h = last_4h.get('EMA_20', current_price)
             if sq_dir == "up":
+                # --- GOLDEN FILTER INJECTION ---
+                # KRİPTO LONG 5: VOLATİLİTE SIKIŞMASI (SQUEEZE)
+                # Filter: Relative_Volume < 3.9577 (+11.00R Improvement)
+                vol_sma = last_4h.get('vol_sma_20', 0)
+                vol = last_4h.get('volume', 0)
+                rel_vol_4h = vol / vol_sma if (pd.notna(vol_sma) and vol_sma > 0) else 1.0
+                if rel_vol_4h >= 3.9577:
+                    return signals
+
                 sl = min(sq_mid, ema20_4h) if not pd.isna(ema20_4h) else sq_mid
                 sl = apply_5x_sl_cap(sl, current_price, ctx)
                 sl_dist = abs(current_price - sl)
@@ -1307,6 +1317,21 @@ def _check_crypto_6_vwap(ctx):
     df_4h = ctx["df_4h"]
     btc_ok = ctx["btc_ok"]
 
+    # --- GOLDEN FILTER INJECTION ---
+    # KRİPTO LONG 6: VWAP KURUMSAL MIKNATISI
+    # Filter: Relative_Volume > 1.2126 (+10.00R Improvement)
+    vol_sma = last_4h.get('vol_sma_20', 0)
+    vol = last_4h.get('volume', 0)
+    rel_vol_4h = vol / vol_sma if (pd.notna(vol_sma) and vol_sma > 0) else 1.0
+    if rel_vol_4h <= 1.2126:
+        return signals
+
+    # --- BTC FILTER INJECTION ---
+    # Filter: BTC RSI > 40 AND BTC 24h Change < 2.0% (+6.00R Improvement)
+    btc_rsi, btc_change = get_btc_rsi_and_change()
+    if btc_rsi <= 40 or btc_change >= 2.0:
+        return signals
+
     if last_1d is None or pd.isna(last_1d.get('EMA_20')) or pd.isna(last_1d.get('EMA_50')):
         return signals
     if last_1d['EMA_20'] <= last_1d['EMA_50']:
@@ -1341,7 +1366,7 @@ def _check_crypto_6_vwap(ctx):
             sl = wick_low * config.CRYPTO_VWAP_SL_MULT
             sl = apply_5x_sl_cap(sl, current_price, ctx)
             sl_dist = abs(current_price - sl)
-            _tp_c6 = current_price + (sl_dist * config.BEAR_HUNTER_TP_RR)
+            _tp_c6 = current_price + (sl_dist * 1.50)
             _rr_c6 = abs(_tp_c6 - current_price) / max(abs(current_price - sl), 1e-8)
             
             raw_vars = locals()
@@ -1379,12 +1404,37 @@ def _check_crypto_7_obv(ctx):
     last_1d = ctx["last_1d"]
     current_price = ctx["current_price"]
     df_1d = ctx["df_1d"]
+    df_4h = ctx.get("df_4h")
+
+    # --- GOLDEN FILTER INJECTION ---
+    # KRİPTO LONG 7: SESSİZ BİRİKİM RADARI (OBV)
+    # Filter: 4H BB_Width < 0.1964 (+9.00R Improvement)
+    if df_4h is not None and not df_4h.empty:
+        bbu_col = [c for c in df_4h.columns if 'BBU' in c]
+        if not bbu_col:
+            df_4h = df_4h.copy()
+            df_4h.ta.bbands(length=20, std=2.0, append=True)
+            bbu_col = [c for c in df_4h.columns if 'BBU' in c]
+        bbl_col = [c for c in df_4h.columns if 'BBL' in c]
+        bbm_col = [c for c in df_4h.columns if 'BBM' in c]
+        if bbu_col and bbl_col and bbm_col:
+            bbu = df_4h[bbu_col[0]].iloc[-1]
+            bbl = df_4h[bbl_col[0]].iloc[-1]
+            bbm = df_4h[bbm_col[0]].iloc[-1]
+            if bbm != 0:
+                bbw = (bbu - bbl) / bbm
+                if bbw >= 0.1964:
+                    return signals
 
     obv_ok, obv_box_high, obv_box_low = detect_obv_accumulation(df_1d, max_change_pct=config.CRYPTO_OBV_ACC_MAX_CHANGE_PCT)
     if obv_ok and obv_box_high is not None:
         btcdom_trend = get_btc_dominance_trend()
         if btcdom_trend != "UP":
-            sl = (obv_box_high + obv_box_low) / 2
+            last_4h = df_4h.iloc[-1] if df_4h is not None and not df_4h.empty else None
+            atr_val = last_4h.get('ATRr_14', last_4h.get('ATR_14')) if last_4h is not None else None
+            if atr_val is None or pd.isna(atr_val):
+                atr_val = current_price * config.BEAR_HUNTER_DEFAULT_ATR_MULT
+            sl = current_price - (atr_val * 0.75)
             sl = apply_5x_sl_cap(sl, current_price, ctx)
             cmf_val = calculate_cmf(df_1d)
             cmf_label = f"CMF: {cmf_val:.3f} ✅" if cmf_val is not None else "CMF: N/A"
@@ -1437,6 +1487,13 @@ def _check_crypto_7_obv(ctx):
 
 def _check_crypto_sniper_1h_long(ctx_1h):
     signals = []
+    bbw = ctx_1h["bbw"]
+    # --- GOLDEN FILTER INJECTION ---
+    # KRİPTO LONG 10: KESKİN NİŞANCI (SNIPER)
+    # Filter: BB_Width < 0.1465 (+102.00R Improvement)
+    if bbw is not None and pd.notna(bbw) and bbw >= 0.1465:
+        return signals
+
     symbol = ctx_1h["symbol"]
     current_price = ctx_1h["current_price"]
     btc_ok = ctx_1h["btc_ok"]
@@ -1444,7 +1501,6 @@ def _check_crypto_sniper_1h_long(ctx_1h):
     last_1h_s = ctx_1h["last_1h_s"]
     prev_1h_s = ctx_1h["prev_1h_s"]
     guarded_vol_sma = ctx_1h["guarded_vol_sma"]
-    bbw = ctx_1h["bbw"]
     kcw = ctx_1h["kcw"]
     bb_pct = ctx_1h["bb_pct"]
     bbl = ctx_1h["bbl"]
@@ -1454,7 +1510,11 @@ def _check_crypto_sniper_1h_long(ctx_1h):
     sweep_ok_long, _ = sniper_detect_sweep(df_1h_sniper, swing_lows_s, point_type="low")
     has_sfp_long = sweep_ok_long
     
-    sl_long = max(bbl * config.CRYPTO_SQUEEZE_SL_BBL_MULT, current_price * config.CRYPTO_SQUEEZE_SL_MIN_MULT)
+    last_4h = ctx_1h.get("last_4h")
+    atr_val = last_4h.get('ATRr_14', last_4h.get('ATR_14')) if last_4h is not None else None
+    if atr_val is None or pd.isna(atr_val):
+        atr_val = current_price * config.BEAR_HUNTER_DEFAULT_ATR_MULT
+    sl_long = current_price - (atr_val * 2.75)
     sl_long = apply_5x_sl_cap(sl_long, current_price, ctx_1h)
     _tp_sn_long = current_price + config.BEAR_HUNTER_TP_RR * (current_price - sl_long)
     _rr_sn_long = abs(_tp_sn_long - current_price) / max(abs(current_price - sl_long), 1e-8)
@@ -1512,6 +1572,18 @@ def _check_crypto_sniper_1h_long(ctx_1h):
 
 def _check_crypto_sniper_1h_short(ctx_1h):
     signals = []
+    symbol = ctx_1h["symbol"]
+    current_price = ctx_1h["current_price"]
+
+    # --- GOLDEN FILTER INJECTION ---
+    # KRİPTO SHORT 10: KESKİN NİŞANCI (SNIPER)
+    # Filter: ATR_Pct > 1.0771 (+30.00R Improvement)
+    last_4h = ctx_1h.get('last_4h')
+    if last_4h is not None:
+        atr_val = last_4h.get('ATRr_14', last_4h.get('ATR_14', 0))
+        atr_pct = (atr_val / current_price) * 100.0 if current_price > 0 else 0
+        if atr_pct <= 1.0771:
+            return signals
 
     # Anti-Rekt HTF Trend filtresi (Güçlü boğa trendinde short arama)
     last_1d = ctx_1h.get('last_1d')
@@ -1523,8 +1595,6 @@ def _check_crypto_sniper_1h_short(ctx_1h):
         if pd.notna(ema_20_1d) and pd.notna(ema_50_1d) and pd.notna(rsi_1d):
             if ema_20_1d > ema_50_1d and rsi_1d > 60:
                 return signals
-    symbol = ctx_1h["symbol"]
-    current_price = ctx_1h["current_price"]
     btc_ok = ctx_1h["btc_ok"]
     df_1h_sniper = ctx_1h["df_1h_sniper"]
     last_1h_s = ctx_1h["last_1h_s"]
@@ -1545,7 +1615,7 @@ def _check_crypto_sniper_1h_short(ctx_1h):
     
     sl_short = min(bbu * config.CRYPTO_SQUEEZE_SHORT_SL_BBU_MULT, current_price * config.CRYPTO_SQUEEZE_SHORT_SL_MAX_MULT)
     sl_short = apply_5x_sl_cap(sl_short, current_price, ctx_1h)
-    _tp_sn_short = current_price - config.BEAR_HUNTER_TP_RR * (sl_short - current_price)
+    _tp_sn_short = current_price - 1.75 * (sl_short - current_price)
     _rr_sn_short = abs(_tp_sn_short - current_price) / max(abs(sl_short - current_price), 1e-8)
     
     is_nan_ind = (pd.isna(last_1h_s.get('volume', float('nan'))) or pd.isna(current_price))
@@ -1718,20 +1788,26 @@ def _check_crypto_long_sfp_choch(ctx):
             if last_4h.get('CMF', 1) >= 0.1768:
                 return signals
 
-            # Golden Filter (Iteration 2)
-            if last_4h.get('ADX_14', 100) >= 22.8832:
+            # Golden Filter (Iteration 2 - Optimized)
+            if last_4h.get('ADX_14', 100) >= 20.4955:
                 return signals
 
             # Golden Filter (Iteration 3)
             if last_4h.get('Relative_Volume', 1) >= 6.3074:
                 return signals
+
+            # --- BTC FILTER INJECTION ---
+            # Filter: BTC RSI > 45 AND BTC 24h Change > -2.0%
+            btc_rsi, btc_change = get_btc_rsi_and_change()
+            if btc_rsi <= 45 or btc_change <= -2.0:
+                return signals
                 
             atr_val = last_4h.get('ATRr_14', last_4h.get('ATR_14'))
             if pd.isna(atr_val): atr_val = current_price * 0.02
-            sl = sweep_low - (atr_val * 0.5)
+            sl = current_price - (atr_val * 2.25)
             sl = apply_5x_sl_cap(sl, current_price, ctx)
             
-            _tp = current_price + (current_price - sl) * config.BEAR_HUNTER_TP_RR
+            _tp = current_price + (current_price - sl) * 2.50
             _rr = abs(_tp - current_price) / max(abs(current_price - sl), 1e-8)
             
             raw_vars = locals()

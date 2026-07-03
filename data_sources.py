@@ -880,6 +880,50 @@ def _get_btc_htf_bias():
     _set_cached('btc_htf_bias', res)
     return res
 
+def get_btc_rsi_and_change():
+    """Returns (btc_rsi_14, btc_24h_change) for BTC/USDT daily."""
+    cached = _get_cached('btc_rsi_and_change')
+    if cached is not None:
+        return cached
+
+    df = None
+    if not IS_USA_SERVER:
+        try:
+            ohlcv = exchange.fetch_ohlcv("BTC/USDT", '1d', limit=50)
+            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        except Exception:
+            pass
+
+    if df is None:
+        try:
+            ohlcv = exchange_fallback.fetch_ohlcv("BTC/USDT", '1d', limit=50)
+            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        except Exception:
+            try:
+                df = yf.download("BTC-USD", period="3mo", interval="1d", progress=False)
+                df = clean_yf_df(df)
+            except Exception:
+                return 50.0, 0.0
+
+    try:
+        df.ta.rsi(length=14, append=True)
+        rsi_col = 'rsi_14' if 'rsi_14' in df.columns else 'RSI_14'
+        close_col = 'close' if 'close' in df.columns else 'Close'
+        
+        last_rsi = df[rsi_col].iloc[-1]
+        last_close = df[close_col].iloc[-1]
+        prev_close = df[close_col].iloc[-2]
+        
+        change_24h = ((last_close - prev_close) / prev_close) * 100.0
+        res = (float(last_rsi), float(change_24h))
+    except Exception:
+        res = (50.0, 0.0)
+
+    _set_cached('btc_rsi_and_change', res)
+    return res
+
+
+
 def _check_dxy_shield():
     """DXY (Dolar Endeksi) yükseliş trendinde mi? 5dk cache ile kontrol eder."""
     cached = _get_cached('dxy_shield')
