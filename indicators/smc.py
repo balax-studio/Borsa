@@ -238,7 +238,7 @@ def detect_premium_rejection(df_4h, df_1d):
     if ema20_1d >= ema50_1d:
         return False, None, None, None
 
-    recent = df_4h.tail(30)
+    recent = df_4h.tail(90)
     swing_high_val = float(recent['high'].max())
     swing_high_idx = recent['high'].idxmax()
     after_high = recent.loc[swing_high_idx:]
@@ -256,7 +256,7 @@ def detect_premium_rejection(df_4h, df_1d):
         return False, None, None, None
 
     fib_width_pct = (leg_range / swing_high_val) * 100
-    if fib_width_pct > 15:
+    if fib_width_pct > 40:
         return False, None, None, None
 
     fib_618 = swing_low_val + config.FIB_618 * leg_range
@@ -266,8 +266,9 @@ def detect_premium_rejection(df_4h, df_1d):
     current_close = float(last_4h['close'])
 
     if fib_618 <= current_close <= fib_786:
+        is_red_candle = last_4h['close'] < last_4h['open']
         is_bearish_engulfing = (
-            last_4h['close'] < last_4h['open'] and
+            is_red_candle and
             len(df_4h) >= 2 and
             last_4h['open'] > df_4h.iloc[-2]['close'] and
             last_4h['close'] < df_4h.iloc[-2]['open']
@@ -278,9 +279,9 @@ def detect_premium_rejection(df_4h, df_1d):
         ema_rejection = False
         if ema20_4h is not None and not pd.isna(ema20_4h):
             ema_rejection = (last_4h['high'] >= ema20_4h and last_4h['close'] < ema20_4h
-                             and last_4h['close'] < last_4h['open'])
+                             and is_red_candle)
 
-        if is_bearish_engulfing or ema_rejection:
+        if is_bearish_engulfing or ema_rejection or is_red_candle:
             return True, fib_618, fib_786, last_4h
 
     return False, None, None, None

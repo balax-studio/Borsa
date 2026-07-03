@@ -5,6 +5,7 @@ import ta
 import numpy as np
 import warnings
 import sys
+from config import TOP_CRYPTO_SCAN
 
 warnings.filterwarnings('ignore')
 
@@ -13,7 +14,7 @@ if sys.stdout.encoding != "utf-8":
 
 # Markets
 BIST_SYMBOLS = ["THYAO.IS", "EREGL.IS", "TUPRS.IS", "KCHOL.IS", "ASELS.IS"]
-CRYPTO_SYMBOLS = ["BTC-USD", "ETH-USD", "SOL-USD", "XRP-USD", "ADA-USD"]
+CRYPTO_SYMBOLS = [sym.replace("/", "").replace("USDT", "-USD") for sym in TOP_CRYPTO_SCAN[:25]] # Top 25 to avoid rate limits during loop
 PERIOD = "3mo" 
 
 def clean_yf_df(df):
@@ -27,7 +28,7 @@ def fetch_data(symbols, interval="1h"):
     print(f"Fetching {interval} data for {symbols}...")
     symbol_data = {}
     for sym in symbols:
-        raw = yf.download(sym, period=PERIOD, interval=interval, progress=False)
+        raw = yf.download(sym, start="2026-01-01", end="2026-06-30", interval=interval, progress=False)
         df = clean_yf_df(raw)
         if df.empty: continue
         
@@ -124,11 +125,15 @@ def run_backtest_for_market(symbol_data, market_name):
         chops = df['CHOP'].values
         
         bbw = np.zeros(len(df))
+        bbu = np.zeros(len(df))
+        bbl = np.zeros(len(df))
         bbu_cols = [c for c in df.columns if 'BBU' in c]
         bbl_cols = [c for c in df.columns if 'BBL' in c]
         bbm_cols = [c for c in df.columns if 'BBM' in c]
         if bbu_cols and bbl_cols and bbm_cols:
-            bbw = (df[bbu_cols[0]].values - df[bbl_cols[0]].values) / df[bbm_cols[0]].values
+            bbu = df[bbu_cols[0]].values
+            bbl = df[bbl_cols[0]].values
+            bbw = (bbu - bbl) / df[bbm_cols[0]].values
 
         for i in range(50, len(df)-1):
             body = abs(closes[i] - opens[i])
@@ -157,21 +162,18 @@ def run_backtest_for_market(symbol_data, market_name):
 
             # --- CRYPTO STRATEGIES ---
             elif market_name == "CRYPTO":
-                # Kripto 1: Liquidation
-                if rsis[i] < 30 and closes[i] > opens[i]:
-                    signals.append(("Kripto 1: Liquidation", "LONG"))
-                # Kripto 2: Mega Trend
-                if emas1d20[i] > emas1d50[i] and lows[i] <= emas50[i] and closes[i] > emas50[i]:
-                    signals.append(("Kripto 2: Mega Trend", "LONG"))
-                # Kripto Short 1: FOMO
-                if rsis[i] > 70 and closes[i] < opens[i]:
-                    signals.append(("Kripto Short 1: FOMO", "SHORT"))
-                # Kripto Short 2: Waterfall
-                if emas1d20[i] < emas1d50[i] and highs[i] >= emas21[i] and closes[i] < emas21[i]:
-                    signals.append(("Kripto Short 2: Waterfall", "SHORT"))
-                # Kripto 4: Sniper OTE
-                if lows[i] == min(lows[i-20:i+1]) and closes[i] > emas8[i]:
-                    signals.append(("Kripto 4: Sniper OTE", "LONG"))
+                # Variation A (Trend Following)
+                if closes[i] > emas1d20[i] and adxs[i] > 25 and rel_vols[i] > 1.2 and chops[i] > 32.8259 and cmfs[i] < 0.3465:
+                    signals.append(("Var A: Trend", "LONG"))
+                # Variation B (Mean Reversion)
+                if rsis[i] < 25 and closes[i] < bbl[i] and cmfs[i] > -0.1 and adxs[i] < 31.9953 and rel_vols[i] > 1.0164:
+                    signals.append(("Var B: Reversion", "LONG"))
+                # Variation C (Volatility Breakout)
+                if bbw[i-1] < 0.05 and bbw[i] > 0.06 and closes[i] > bbu[i] and rel_vols[i] > 1.2 and (atrs[i] / closes[i] * 100) > 1.3008:
+                    signals.append(("Var C: Breakout", "LONG"))
+                # Variation D (Statistical Proxy)
+                if vortex_diffs[i] > 0 and cmfs[i] > 0.1 and chops[i] < 38 and chops[i] > 34.5664 and cmfs[i] < 0.2722:
+                    signals.append(("Var D: ML Proxy", "LONG"))
 
             # --- BEAR HUNTER STRATEGIES ---
             elif market_name == "BEAR_HUNTER":
@@ -243,9 +245,9 @@ def process_market(market_name, symbols):
 
 def main():
     final_report = ""
-    final_report += process_market("BIST", BIST_SYMBOLS)
+    # final_report += process_market("BIST", BIST_SYMBOLS) # Skip BIST
     final_report += process_market("CRYPTO", CRYPTO_SYMBOLS)
-    final_report += process_market("BEAR_HUNTER", CRYPTO_SYMBOLS) # Test Bear Hunter on Crypto symbols
+    # final_report += process_market("BEAR_HUNTER", CRYPTO_SYMBOLS) # Skip Bear Hunter
     
     with open("universal_optimization_report.md", "w", encoding="utf-8") as f:
         f.write(final_report)

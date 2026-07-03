@@ -224,8 +224,8 @@ async def scan_all_markets():
         logging.info(f"[scan_all_markets] Emtia tarama: {_time.time()-t0:.1f}s")
 
     # 4. 🐻 AYI AVCISI (Cycle Cache → duplikasyon 0)
-    # --- [GEÇİCİ BYPASS] Kullanıcı talebi üzerine Ayı Avcısı taramaları geçici olarak kapatıldı ---
-    bypass_bear_hunter = True
+    # --- [GEÇİCİ BYPASS] Ayı Avcısı taramaları aktif edildi ---
+    bypass_bear_hunter = False
     t0 = _time.time()
     
     if bypass_bear_hunter:

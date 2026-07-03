@@ -96,14 +96,6 @@ def _check_crypto_1_liquidation(ctx):
     if not _is_meaningful_volume(last_4h['volume'], guarded_vol_sma, current_price, "KRIPTO"):
         return signals
 
-    # Golden Filter (Iteration 1)
-    if last_4h.get('ADX_14', 100) >= 29.9580:
-        return signals
-
-    # Golden Filter (Iteration 2)
-    if last_4h.get('ADX_14', 0) <= 22.0293:
-        return signals
-
     # Golden Filter: ADX > 64.14 (Relaxed/Removed to increase signals)
     # if last_4h.get('ADX_14', 0) <= 64.14:
     #     return signals
@@ -473,19 +465,6 @@ def _check_crypto_short_1_liquidity_hunt(ctx):
     )
     if not in_supply:
         _scores["conflict_penalty"] -= 15.0
-        
-    # Golden Filter (Iteration 1)
-    if last_4h.get('Vortex_Diff', 0) >= -0.1531:
-        return signals
-
-    # Golden Filter (Iteration 2)
-    if last_4h.get('ADX_14', 0) <= 15.0902:
-        return signals
-
-    # Golden Filter (Iteration 3)
-    if last_4h.get('RSI_14', 0) <= 36.6882:
-        return signals
-        
     _conv = calculate_conviction(_scores, ctx=ctx)
     if _conv.grade in (CONVICTION_STRONG, CONVICTION_MEDIUM, CONVICTION_WATCH):
         funding_str = f" | Fonlama: %{funding_rate:.4f}" if funding_rate is not None else ""
@@ -681,15 +660,6 @@ def _check_crypto_short_4_sr_flip(ctx):
     if is_ema_bullish: _scores["conflict_penalty"] -= 10.0
     if is_high_vol: _scores["conflict_penalty"] -= 10.0
     if is_green_candle: _scores["conflict_penalty"] -= 5.0
-    
-    # Golden Filter (Iteration 1)
-    if last_4h.get('ADX_14', 0) <= 23.1613:
-        return signals
-
-    # Golden Filter (Iteration 2)
-    if last_4h.get('RSI_14', 0) <= 40.8206:
-        return signals
-
     _conv = calculate_conviction(_scores, ctx=ctx)
     if _conv.grade in (CONVICTION_STRONG, CONVICTION_MEDIUM, CONVICTION_WATCH):
         signals.append({
@@ -1714,18 +1684,6 @@ def _check_crypto_long_sfp_choch(ctx):
             in_ote = True
         
         if has_fvg or in_ote:
-            # Golden Filter (Iteration 1)
-            if last_4h.get('CMF', 1) >= 0.1768:
-                return signals
-
-            # Golden Filter (Iteration 2)
-            if last_4h.get('ADX_14', 100) >= 22.8832:
-                return signals
-
-            # Golden Filter (Iteration 3)
-            if last_4h.get('Relative_Volume', 1) >= 6.3074:
-                return signals
-                
             atr_val = last_4h.get('ATRr_14', last_4h.get('ATR_14'))
             if pd.isna(atr_val): atr_val = current_price * 0.02
             sl = sweep_low - (atr_val * 0.5)
@@ -1863,10 +1821,6 @@ def _check_crypto_long_sr_flip_fvg(ctx):
             if pd.isna(atr_val): atr_val = current_price * 0.02
             
             if ema21 > 0 and abs(current_price - ema21) < (atr_val * 1.5):
-                # Golden Filter (Iteration 1)
-                if (atr_val / current_price) * 100 >= 1.3104:
-                    return signals
-                    
                 sl = current_price - (atr_val * 2.0)
                 sl = apply_5x_sl_cap(sl, current_price, ctx)
                 _tp = current_price + (current_price - sl) * config.BEAR_HUNTER_TP_RR

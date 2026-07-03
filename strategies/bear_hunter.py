@@ -45,6 +45,16 @@ from .helpers import _extract_raw_indicators, _get_consecutive_sl
 def _check_bear_hunter_1_sfp(symbol, df_4h, current_price, atr_val, funding_note, oi_note, btc_bullish, _base_scores):
     signals = []
     sfp_found, swing_high, sfp_candle = detect_sfp(df_4h)
+    
+    # --- GOLDEN FILTER INJECTION ---
+    # SHORT 1: ZİRVE TUZAĞI (SFP)
+    # Filter: ADX > 24.5540 (+10.00R Improvement)
+    import pandas as pd
+    adx_val = df_4h.iloc[-1].get(f'ADX_14')  # using 14 as config.IND_ADX_LENGTH default
+    if adx_val is not None and pd.notna(adx_val):
+        if adx_val <= 24.5540:
+            return signals
+            
     if sfp_found and sfp_candle is not None:
         sl = float(sfp_candle['high']) + (atr_val * config.BEAR_HUNTER_SFP_ATR_SL_MULT)
         sl_dist = max(sl - current_price, 1e-8)
@@ -78,6 +88,16 @@ def _check_bear_hunter_1_sfp(symbol, df_4h, current_price, atr_val, funding_note
 def _check_bear_hunter_2_premium(symbol, df_4h, df_1d, current_price, atr_val, funding_note, oi_note, btc_bullish, _base_scores):
     signals = []
     prem_found, fib_618, fib_786, prem_candle = detect_premium_rejection(df_4h, df_1d)
+    
+    # --- GOLDEN FILTER INJECTION ---
+    # SHORT 2: PAHALI BÖLGE REDDİ (SMC PREMIUM)
+    # Filter: RSI < 58.3958 (+5.00R Improvement)
+    import pandas as pd
+    rsi_val = df_4h.iloc[-1].get(f'RSI_{config.IND_RSI_LENGTH}')
+    if rsi_val is not None and pd.notna(rsi_val):
+        if rsi_val >= 58.3958:
+            return signals
+            
     if prem_found:
         sl = fib_786 + (atr_val * config.BEAR_HUNTER_PREMIUM_ATR_SL_MULT)
         sl_dist = max(sl - current_price, 1e-8)
