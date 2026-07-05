@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import asyncio
+import re
 from datetime import datetime, timezone
 from telegram import Bot
 from telegram.constants import ParseMode
@@ -9,6 +10,30 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger("quant_bot.notifier")
 FAILED_MSG_FILE = "failed_messages.json"
+
+def safe_html_truncate(html_text: str, max_len: int = 1024) -> str:
+    """Safely truncates an HTML string and closes any open tags."""
+    if not html_text or len(html_text) <= max_len:
+        return html_text
+    
+    sliced = html_text[:max_len - 3]
+    sliced = re.sub(r'<[^>]*$', '', sliced)
+    
+    stack = []
+    for tag_match in re.finditer(r'</?([a-zA-Z]+)[^>]*>', sliced):
+        tag = tag_match.group(0)
+        tag_name = tag_match.group(1).lower()
+        if tag.startswith('</'):
+            if stack and stack[-1] == tag_name:
+                stack.pop()
+        else:
+            stack.append(tag_name)
+            
+    suffix = "..."
+    for tag_name in reversed(stack):
+        suffix += f"</{tag_name}>"
+        
+    return sliced + suffix
 
 class NotificationService:
     def __init__(self):
@@ -141,7 +166,7 @@ class NotificationService:
                     with open(photo_path, 'rb') as photo:
                         truncated_caption = caption
                         if truncated_caption and len(truncated_caption) > 1024:
-                            truncated_caption = truncated_caption[:1021] + "..."
+                            truncated_caption = safe_html_truncate(truncated_caption, 1024)
                         await asyncio.wait_for(
                             target_bot.send_photo(chat_id=chat_id, photo=photo, caption=truncated_caption, parse_mode=ParseMode.HTML),
                             timeout=25.0
