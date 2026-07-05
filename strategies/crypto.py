@@ -1554,6 +1554,8 @@ def _check_crypto_sniper_1h_long(ctx_1h):
     if blocked:
         return signals
         
+    funding_rate = get_funding_rate(symbol)
+
     _scores_sn_long = build_sniper_scores(
         price=current_price, ema_fast=last_1h_s.get(f'EMA_{config.IND_EMA_FAST}'), ema_mid=last_1h_s.get(f'EMA_{config.IND_EMA_21}'), ema_slow=None,
         rsi=last_1h_s.get(f'RSI_{config.IND_RSI_LENGTH}'), rsi_prev=prev_1h_s.get(f'RSI_{config.IND_RSI_LENGTH}'),
@@ -1561,7 +1563,8 @@ def _check_crypto_sniper_1h_long(ctx_1h):
         rr=_rr_sn_long, regime="BULL" if btc_ok else "BEAR",
         macro_aligned=btc_ok, consecutive_sl=_get_consecutive_sl(symbol),
         bbw=bbw, kcw=kcw, pb=bb_pct, fvg_present=has_fvg_long, sfp_present=has_sfp_long,
-        market="KRIPTO", is_long=True, willy_ema=last_1h_s.get('WILLR_21_EMA_13')
+        market="KRIPTO", is_long=True, willy_ema=last_1h_s.get('WILLR_21_EMA_13'),
+        funding_rate=funding_rate
     )
     _conv_sn_long = calculate_conviction(_scores_sn_long, weights=SNIPER_CRYPTO_WEIGHTS, ctx=ctx_1h)
     if _conv_sn_long.grade in (CONVICTION_STRONG, CONVICTION_MEDIUM):
@@ -1718,6 +1721,12 @@ def _check_crypto_sniper_1h(ctx):
     df_1h_sniper.ta.ema(length=config.IND_EMA_21, append=True)
     df_1h_sniper.ta.cmf(length=20, append=True)
     df_1h_sniper['vol_sma_20'] = ta.sma(df_1h_sniper['volume'], length=config.IND_VOL_SMA_LENGTH)
+    
+    # Williams %R with 13 EMA (Willy EMA)
+    highest_high = df_1h_sniper['high'].rolling(window=21).max()
+    lowest_low = df_1h_sniper['low'].rolling(window=21).min()
+    df_1h_sniper['WILLR_21'] = ((highest_high - df_1h_sniper['close']) / (highest_high - lowest_low).replace(0, 1e-9)) * -100.0
+    df_1h_sniper['WILLR_21_EMA_13'] = df_1h_sniper['WILLR_21'].ewm(span=13, adjust=False).mean()
     
     kc_upper_col = [c for c in df_1h_sniper.columns if 'KCU' in c]
     if not kc_upper_col:

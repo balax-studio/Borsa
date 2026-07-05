@@ -224,6 +224,8 @@ def analyze_bear_hunter(symbol, df_1d, df_4h, btc_bullish=False, metrics_collect
 
     _collect_bear_hunter_metrics(symbol, df_1d, last_4h, current_price, ema_mid_col, ema_slow_col, metrics_collector)
     
+    funding_rate = get_funding_rate(symbol)
+    
     _adx_prev_bh = df_4h.iloc[-2].get(f'ADX_{config.IND_ADX_LENGTH}') if len(df_4h) >= 2 else None
     _base_scores = {
         "adx": last_4h.get(f'ADX_{config.IND_ADX_LENGTH}'), "adx_prev": _adx_prev_bh,
@@ -232,14 +234,13 @@ def analyze_bear_hunter(symbol, df_1d, df_4h, btc_bullish=False, metrics_collect
         "volume": last_4h.get('volume', 0), "vol_sma": last_4h.get('vol_sma_20'),
         "dollar_vol": last_4h.get('volume', 0) * current_price,
         "has_engulfing": False, "regime": "BEAR",
-        "macro_aligned": (not btc_bullish), "consecutive_sl": _get_consecutive_sl(symbol), "market": "KRIPTO"
+        "macro_aligned": (not btc_bullish), "consecutive_sl": _get_consecutive_sl(symbol), "market": "KRIPTO",
+        "funding_rate": funding_rate
     }
 
     atr_val = last_4h.get('ATRr_14', last_4h.get('ATR_14'))
     if atr_val is None or pd.isna(atr_val):
         atr_val = current_price * config.BEAR_HUNTER_DEFAULT_ATR_MULT
-
-    funding_rate = get_funding_rate(symbol)
     funding_ok = True
     funding_note = ""
     if funding_rate is not None:
