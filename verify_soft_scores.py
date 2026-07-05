@@ -139,10 +139,12 @@ def test_sniper_soft_scoring():
         volume=1200, vol_sma=1000, dollar_vol=120000,
         rr=3.0, has_engulfing=False, regime="BEAR", macro_aligned=True, consecutive_sl=0,
         bbw=12.0, kcw=10.0, pb=0.5, fvg_present=False, sfp_present=True,
-        market="KRIPTO", is_long=False, funding_rate=0.005
+        market="KRIPTO", is_long=False, funding_rate=0.005, willy_ema=-60.0
     )
+    assert scores_crypto_short.get("willy_ema_penalty") == -10.0
     conv_crypto_short = calculate_conviction(scores_crypto_short, weights=SNIPER_CRYPTO_WEIGHTS)
     print(f"Crypto Short Sniper Total Score: {conv_crypto_short.total_score}")
+    assert conv_crypto_short.component_scores.get("willy_ema_penalty") == -10.0
     assert conv_crypto_short.total_score > 0
     
     # Ensure weights sum test passes

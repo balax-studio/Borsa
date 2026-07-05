@@ -1095,6 +1095,7 @@ def calculate_conviction(
     autopsy_penalty = scores.get("autopsy_penalty", 0.0)
     # V3.6: Weak Setup Penalty (BIST 10 vb. için)
     setup_weak_penalty = scores.get("setup_weak_penalty", 0.0)
+    willy_ema_penalty = scores.get("willy_ema_penalty", 0.0)
     
     # V3.7: Long Risk Penalty & USDT Trend Penalty
     long_risk_penalty = scores.get("long_risk_penalty", 0.0)
@@ -1190,6 +1191,7 @@ def calculate_conviction(
     total += long_risk_penalty
     total += usdt_penalty
     total += fuzzy_filter_penalty
+    total += willy_ema_penalty
     
     # 10x leverage penalty for SL > 1%
     sl_distance_penalty = 0.0
@@ -1206,6 +1208,7 @@ def calculate_conviction(
     result.component_scores["usdt_penalty"] = round(usdt_penalty, 1)
     result.component_scores["sl_distance_penalty"] = round(sl_distance_penalty, 1)
     result.component_scores["fuzzy_filter_penalty"] = round(fuzzy_filter_penalty, 1)
+    result.component_scores["willy_ema_penalty"] = round(willy_ema_penalty, 1)
     
     # V3.8: Apply global CONVICTION_SCORE_MULTIPLIER to the final score
     score_multiplier = getattr(config, "CONVICTION_SCORE_MULTIPLIER", 1.0)
