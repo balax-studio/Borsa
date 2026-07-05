@@ -15,7 +15,7 @@ load_dotenv()
 # Sunucu / Altyapı
 # ════════════════════════════════════════
 IS_USA_SERVER: bool = os.getenv("IS_USA_SERVER", "true").lower() == "true"
-CCXT_EXCHANGE: str = os.getenv("CCXT_EXCHANGE", "binance")  # CCXT borsa seçimi
+CCXT_EXCHANGE: str = os.getenv("CCXT_EXCHANGE", "bybit")  # CCXT borsa seçimi
 CCXT_FETCH_FUTURES_DATA: bool = True  # OI ve Funding rate çekilsin mi?
 
 # ════════════════════════════════════════

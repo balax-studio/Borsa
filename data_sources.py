@@ -38,15 +38,15 @@ def get_yf_crypto_ticker(symbol: str) -> str:
 # ════════════════════════════════════════
 # Exchange Instances
 # ════════════════════════════════════════
-exchange = ccxt.binance({
+exchange = ccxt.bybit({
     'enableRateLimit': True,
     'timeout': 20000,
-    'options': {'defaultType': 'future'} if config.CCXT_FETCH_FUTURES_DATA else {}
+    'options': {'defaultType': 'linear'} if config.CCXT_FETCH_FUTURES_DATA else {}
 })
-exchange_futures = ccxt.binance({
+exchange_futures = ccxt.bybit({
     'enableRateLimit': True,
     'timeout': 20000,
-    'options': {'defaultType': 'future'}
+    'options': {'defaultType': 'linear'}
 })
 exchange_fallback = ccxt.kraken({
     'enableRateLimit': True,
@@ -55,36 +55,36 @@ exchange_fallback = ccxt.kraken({
 
 import ccxt.async_support as ccxt_async
 import asyncio
-exchange_async = ccxt_async.binance({
+exchange_async = ccxt_async.bybit({
     'enableRateLimit': True,
     'timeout': 20000,
-    'options': {'defaultType': 'future'} if config.CCXT_FETCH_FUTURES_DATA else {}
+    'options': {'defaultType': 'linear'} if config.CCXT_FETCH_FUTURES_DATA else {}
 })
 exchange_fallback_async = ccxt_async.kraken({
     'enableRateLimit': True,
     'timeout': 20000
 })
 
-_binance_symbols = None
+_primary_symbols = None
 _kraken_symbols = None
 _markets_loading_lock = asyncio.Lock()
 
 async def _ensure_markets_loaded():
-    global _binance_symbols, _kraken_symbols
-    if _binance_symbols is not None and _kraken_symbols is not None:
+    global _primary_symbols, _kraken_symbols
+    if _primary_symbols is not None and _kraken_symbols is not None:
         return
         
     async with _markets_loading_lock:
-        if _binance_symbols is not None and _kraken_symbols is not None:
+        if _primary_symbols is not None and _kraken_symbols is not None:
             return
             
         logging.info("[data_sources] Loading exchange markets for fast routing...")
         try:
             await exchange_async.load_markets()
-            _binance_symbols = set(exchange_async.symbols)
+            _primary_symbols = set(exchange_async.symbols)
         except Exception as e:
-            logging.warning(f"[data_sources] Failed to load Binance markets: {e}")
-            _binance_symbols = set()
+            logging.warning(f"[data_sources] Failed to load Primary (Bybit) markets: {e}")
+            _primary_symbols = set()
             
         try:
             await exchange_fallback_async.load_markets()
@@ -92,7 +92,7 @@ async def _ensure_markets_loaded():
         except Exception as e:
             logging.warning(f"[data_sources] Failed to load Kraken markets: {e}")
             _kraken_symbols = set()
-        logging.info(f"[data_sources] Markets loaded. Binance Futures: {len(_binance_symbols)}, Kraken: {len(_kraken_symbols)}")
+        logging.info(f"[data_sources] Markets loaded. Primary Futures: {len(_primary_symbols)}, Kraken: {len(_kraken_symbols)}")
 
 # ════════════════════════════════════════
 
@@ -221,7 +221,9 @@ def get_funding_rate(symbol):
     if not config.CCXT_FETCH_FUTURES_DATA or IS_USA_SERVER:
         return 0.0
     try:
-        funding = exchange_futures.fetch_funding_rate(symbol)
+        # Bybit'te funding rate sorgularken format BTC/USDT:USDT şeklindedir.
+        target_symbol = f"{symbol}:USDT" if ":" not in symbol else symbol
+        funding = exchange_futures.fetch_funding_rate(target_symbol)
         if funding and 'fundingRate' in funding:
             return float(funding['fundingRate']) * 100
     except ccxt.BadSymbol:
@@ -236,7 +238,8 @@ def get_open_interest(symbol):
     if not config.CCXT_FETCH_FUTURES_DATA or IS_USA_SERVER:
         return 0.0
     try:
-        oi_data = exchange_futures.fetch_open_interest(symbol)
+        target_symbol = f"{symbol}:USDT" if ":" not in symbol else symbol
+        oi_data = exchange_futures.fetch_open_interest(target_symbol)
         if oi_data and 'openInterestValue' in oi_data and oi_data['openInterestValue'] is not None:
             return float(oi_data['openInterestValue'])
     except ccxt.BadSymbol:
@@ -503,14 +506,14 @@ async def async_get_crypto_data(symbol):
     
     usd_sym = symbol.replace("/USDT", "/USD")
 
-    # 1. Binance Futures
-    binance_symbol = symbol if (_binance_symbols and symbol in _binance_symbols) else (f"{symbol}:USDT" if (_binance_symbols and f"{symbol}:USDT" in _binance_symbols) else None)
-    if not IS_USA_SERVER and binance_symbol is not None:
+    # 1. Primary Exchange (Bybit)
+    primary_symbol = symbol if (_primary_symbols and symbol in _primary_symbols) else (f"{symbol}:USDT" if (_primary_symbols and f"{symbol}:USDT" in _primary_symbols) else None)
+    if not IS_USA_SERVER and primary_symbol is not None:
         for attempt in range(retries):
             try:
                 ohlcv_1d, ohlcv_4h = await asyncio.gather(
-                    exchange_async.fetch_ohlcv(binance_symbol, '1d', limit=limit),
-                    exchange_async.fetch_ohlcv(binance_symbol, '4h', limit=limit)
+                    exchange_async.fetch_ohlcv(primary_symbol, '1d', limit=limit),
+                    exchange_async.fetch_ohlcv(primary_symbol, '4h', limit=limit)
                 )
                 df_1d = pd.DataFrame(ohlcv_1d, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
                 df_4h = pd.DataFrame(ohlcv_4h, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
@@ -525,7 +528,7 @@ async def async_get_crypto_data(symbol):
                     return df_1d, df_4h
                 break  # If DataGuard fails, don't retry, move to fallback
             except ccxt.BadSymbol:
-                logging.warning(f"[async_get_crypto_data] {symbol} not in Binance Futures. Skipping.")
+                logging.warning(f"[async_get_crypto_data] {symbol} not in Primary Exchange Futures. Skipping.")
                 break
             except Exception as e:
                 logging.warning(f"[async_get_crypto_data] attempt {attempt+1} failed for {symbol}: {e}")
@@ -589,11 +592,11 @@ async def async_get_crypto_1h_data(symbol):
     limit = OHLCV_LIMIT
     usd_sym = symbol.replace("/USDT", "/USD")
 
-    # 1. Try Binance Futures
-    binance_symbol = symbol if (_binance_symbols and symbol in _binance_symbols) else (f"{symbol}:USDT" if (_binance_symbols and f"{symbol}:USDT" in _binance_symbols) else None)
-    if not IS_USA_SERVER and binance_symbol is not None:
+    # 1. Try Primary Exchange (Bybit)
+    primary_symbol = symbol if (_primary_symbols and symbol in _primary_symbols) else (f"{symbol}:USDT" if (_primary_symbols and f"{symbol}:USDT" in _primary_symbols) else None)
+    if not IS_USA_SERVER and primary_symbol is not None:
         try:
-            ohlcv_1h = await exchange_async.fetch_ohlcv(binance_symbol, '1h', limit=limit)
+            ohlcv_1h = await exchange_async.fetch_ohlcv(primary_symbol, '1h', limit=limit)
             df_1h = pd.DataFrame(ohlcv_1h, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             df_1h['timestamp'] = pd.to_datetime(df_1h['timestamp'], unit='ms')
             df_1h.set_index('timestamp', inplace=True)
@@ -601,7 +604,7 @@ async def async_get_crypto_1h_data(symbol):
             if df_1h is not None:
                 return df_1h
         except Exception as e:
-            logging.info(f"[async_get_crypto_1h_data] Binance futures failed: {e}")
+            logging.info(f"[async_get_crypto_1h_data] Primary exchange futures failed: {e}")
 
     # 2. Try Kraken Fallback
     if _kraken_symbols is not None and (symbol in _kraken_symbols or usd_sym in _kraken_symbols):
@@ -656,7 +659,7 @@ def get_crypto_data(symbol):
             else:
                 return df_1d, df_4h
         except Exception as e:
-            logging.info(f"[get_crypto_data] Binance hatası, yedeklere geçiliyor: {e}")
+            logging.info(f"[get_crypto_data] Primary exchange hatası, yedeklere geçiliyor: {e}")
 
     # Kraken ve yfinance yedekleri
     try:
