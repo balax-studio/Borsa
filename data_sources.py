@@ -284,10 +284,7 @@ def fetch_crypto_oi_crash(symbol):
     if IS_USA_SERVER:
         return False
     try:
-        ccxt_symbol = symbol
-        if CCXT_EXCHANGE == 'bybit' and symbol.endswith('/USDT'):
-            ccxt_symbol = f"{symbol}:USDT"
-            
+        ccxt_symbol = f"{symbol}:USDT" if ":" not in symbol else symbol
         oi_hist = exchange_futures.fetch_open_interest_history(ccxt_symbol, timeframe='1h', limit=24)
         if len(oi_hist) > 0:
             key = 'openInterestValue' if 'openInterestValue' in oi_hist[-1] else 'openInterestAmount'
@@ -310,10 +307,7 @@ def fetch_crypto_oi_surge(symbol, surge_pct=5.0):
     if IS_USA_SERVER:
         return False
     try:
-        ccxt_symbol = symbol
-        if CCXT_EXCHANGE == 'bybit' and symbol.endswith('/USDT'):
-            ccxt_symbol = f"{symbol}:USDT"
-            
+        ccxt_symbol = f"{symbol}:USDT" if ":" not in symbol else symbol
         oi_hist = exchange_futures.fetch_open_interest_history(ccxt_symbol, timeframe='1h', limit=5)
         if len(oi_hist) > 1:
             key = 'openInterestValue' if 'openInterestValue' in oi_hist[-1] else 'openInterestAmount'
