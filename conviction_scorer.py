@@ -443,6 +443,39 @@ def score_funding_rate(funding_rate: float, direction: str = "long") -> float:
             return max(0.0, 50.0 + (funding_rate * 1000))
 
 
+import numpy as np
+
+def score_willy_ema_short(willy_ema: float) -> float:
+    """
+    Willy EMA 15m puanlaması. (Sadece Short 10 Keskin Nişancı Stratejisi için)
+    Lineer Interpolasyon:
+    willy_ema = 0    -> +20 puan
+    willy_ema = -20  ->   0 puan
+    willy_ema = -100 -> -20 puan
+    "Tahmin" koruması: willy_ema eksikse veya NaN ise doğrudan 0.0 döner.
+    """
+    if willy_ema is None or _is_nan(willy_ema):
+        return 0.0
+    
+    score = np.interp(willy_ema, [-100, -20, 0], [-20, 0, 20])
+    return float(score)
+
+def score_willy_ema_long(willy_ema: float) -> float:
+    """
+    Willy EMA 15m puanlaması. (Sadece Kripto Long 10 Keskin Nişancı Stratejisi için)
+    Lineer Interpolasyon:
+    willy_ema = -100 -> +20 puan
+    willy_ema = -80  ->   0 puan
+    willy_ema = 0    -> -20 puan
+    "Tahmin" koruması: willy_ema eksikse veya NaN ise doğrudan 0.0 döner.
+    """
+    if willy_ema is None or _is_nan(willy_ema):
+        return 0.0
+    
+    score = np.interp(willy_ema, [-100, -80, 0], [20, 0, -20])
+    return float(score)
+
+
 def score_rr_ratio(rr: float, regime: str = "NEUTRAL", is_short: bool = False) -> float:
     """
     R:R oranı puanlama — sigmoid ile yumuşak eşik, piyasa rejimine duyarlı.
@@ -1730,6 +1763,7 @@ def build_sniper_scores(
     volume_ratio=None,
     in_supply_zone=False,
     in_demand_zone=False,
+    willy_ema=None,
 ):
     """Keskin Nişancı stratejisi (BIST Sniper, KRIPTO Sniper) için skor paketi."""
     is_gap = (dg_gap_pct >= config.GAP_THRESHOLD_PCT) if dg_gap_pct else False
@@ -1789,6 +1823,14 @@ def build_sniper_scores(
     )
     conflict_penalty += confluence_impact
 
+    # Kripto 10 (Sniper) Willy EMA Puanı
+    willy_ema_penalty = 0.0
+    if market == "KRIPTO":
+        if is_long:
+            willy_ema_penalty = score_willy_ema_long(willy_ema)
+        else:
+            willy_ema_penalty = score_willy_ema_short(willy_ema)
+
     # Base Skorlar
     bbw_score, pb_score, fvg_sfp_score = _calculate_sniper_base_scores(
         market=market,
@@ -1827,6 +1869,7 @@ def build_sniper_scores(
         "funding_rate":  score_funding_rate(funding_rate, direction="long" if is_long else "short") if market == "KRIPTO" else 0.0,
         "data_guard_penalty": dg_penalty,
         "conflict_penalty": conflict_penalty,
+        "willy_ema_penalty": willy_ema_penalty,
         "apply_bear_penalty": apply_bear,
         "autopsy_penalty": autopsy_pen,
         "is_long_strategy": is_long,

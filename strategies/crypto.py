@@ -1561,7 +1561,7 @@ def _check_crypto_sniper_1h_long(ctx_1h):
         rr=_rr_sn_long, regime="BULL" if btc_ok else "BEAR",
         macro_aligned=btc_ok, consecutive_sl=_get_consecutive_sl(symbol),
         bbw=bbw, kcw=kcw, pb=bb_pct, fvg_present=has_fvg_long, sfp_present=has_sfp_long,
-        market="KRIPTO", is_long=True
+        market="KRIPTO", is_long=True, willy_ema=last_1h_s.get('WILLR_21_EMA_13')
     )
     _conv_sn_long = calculate_conviction(_scores_sn_long, weights=SNIPER_CRYPTO_WEIGHTS, ctx=ctx_1h)
     if _conv_sn_long.grade in (CONVICTION_STRONG, CONVICTION_MEDIUM):
@@ -1577,6 +1577,7 @@ def _check_crypto_sniper_1h_long(ctx_1h):
             "reason": (
                 f"🎯 Keskin Nişancı LONG!\n"
                 f"Kanunlar: Squeeze: {_scores_sn_long['bbw_squeeze']:.1f}, %B: {_scores_sn_long['percent_b']:.1f}, FVG/SFP: {_scores_sn_long['fvg_sfp']:.1f}\n"
+                f"Willy EMA Score: {_scores_sn_long.get('willy_ema_penalty', 0.0):.1f}\n"
                 f"SL: Bollinger Alt Band Altı ({sl_long:.2f})"
             ) + _conv_sn_long.to_reason_suffix()
         })
@@ -1661,7 +1662,8 @@ def _check_crypto_sniper_1h_short(ctx_1h):
         macro_aligned=not btc_ok, consecutive_sl=_get_consecutive_sl(symbol),
         bbw=bbw, kcw=kcw, pb=bb_pct, fvg_present=has_fvg_short, sfp_present=has_sfp_short,
         market="KRIPTO", is_long=False, funding_rate=funding_rate,
-        cmf=cmf_1h if cmf_1h is not None and not math.isnan(cmf_1h) else 0.0
+        cmf=cmf_1h if cmf_1h is not None and not math.isnan(cmf_1h) else 0.0,
+        willy_ema=last_1h_s.get('WILLR_21_EMA_13')
     )
     df_4h = ctx_1h.get("df_4h")
     if df_4h is not None and not df_4h.empty:
@@ -1689,6 +1691,7 @@ def _check_crypto_sniper_1h_short(ctx_1h):
             "reason": (
                 f"🎯 Keskin Nişancı SHORT!\n"
                 f"Kanunlar: Squeeze: {_scores_sn_short['bbw_squeeze']:.1f}, %B: {_scores_sn_short['percent_b']:.1f}, FVG/SFP: {_scores_sn_short['fvg_sfp']:.1f}\n"
+                f"Willy EMA Score: {_scores_sn_short.get('willy_ema_penalty', 0.0):.1f}\n"
                 f"SL: ~%5-7 Dinamik Stop ({sl_short:.2f})"
             ) + _conv_sn_short.to_reason_suffix()
         })

@@ -40,21 +40,30 @@ def get_yf_crypto_ticker(symbol: str) -> str:
 # ════════════════════════════════════════
 exchange = ccxt.binance({
     'enableRateLimit': True,
+    'timeout': 20000,
     'options': {'defaultType': 'future'} if config.CCXT_FETCH_FUTURES_DATA else {}
 })
 exchange_futures = ccxt.binance({
     'enableRateLimit': True,
+    'timeout': 20000,
     'options': {'defaultType': 'future'}
 })
-exchange_fallback = ccxt.kraken({'enableRateLimit': True})
+exchange_fallback = ccxt.kraken({
+    'enableRateLimit': True,
+    'timeout': 20000
+})
 
 import ccxt.async_support as ccxt_async
 import asyncio
 exchange_async = ccxt_async.binance({
     'enableRateLimit': True,
+    'timeout': 20000,
     'options': {'defaultType': 'future'} if config.CCXT_FETCH_FUTURES_DATA else {}
 })
-exchange_fallback_async = ccxt_async.kraken({'enableRateLimit': True})
+exchange_fallback_async = ccxt_async.kraken({
+    'enableRateLimit': True,
+    'timeout': 20000
+})
 
 _binance_symbols = None
 _kraken_symbols = None

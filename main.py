@@ -1,8 +1,6 @@
-"""
-main.py
-Borsa Asistanı Ana Döngü (Hibrit Sistem: BIST 100 + Kripto)
-Clean Architecture & SOLID Refactoring
-"""
+import socket
+socket.setdefaulttimeout(20)
+
 import asyncio
 import logging
 from logging.handlers import RotatingFileHandler
