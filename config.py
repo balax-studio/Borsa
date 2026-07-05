@@ -347,6 +347,7 @@ PAIR_LOCK_HOURS = 4            # Her SL sonrası bu varlığın kilitleneceği s
 # Veri çekim derinliği ve eksik veri durumunda uygulanacak belirsizlik cezası parametreleri eklenmiştir.
 DATA_PERIOD_1D = "12mo"            # 1D timeframe için 1 yıllık veri çekilir (en az 250+ bar, SMA 200 için şarttır)
 DATA_PERIOD_1H = "1mo"             # 1H timeframe için 1 aylık veri çekilir
+DATA_PERIOD_15M = "5d"             # 15m timeframe için 5 günlük veri çekilir
 SOFT_UNCERTAINTY_PENALTY = 0.0     # Eksik teknik veri durumunda verilecek ceza puanı (nötr 50.0 yerine 0.0)
 
 OHLCV_LIMIT = 300              # API'den çekilecek mum sayısı (SMA200 için en az 200+ gerekir)

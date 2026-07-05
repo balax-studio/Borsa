@@ -1194,6 +1194,44 @@ def get_crypto_1h_data(symbol):
             logging.warning(f"[get_crypto_1h_data] {symbol} 1H verisi çekilemedi: {eyf}")
             return None
 
+def get_crypto_15m_data(symbol):
+    """SMC LTF onayı ve Sniper stratejisi için 15m verisini çeker."""
+    limit = OHLCV_LIMIT
+    if not IS_USA_SERVER:
+        try:
+            ohlcv_15m = exchange.fetch_ohlcv(symbol, '15m', limit=limit)
+            df_15m = pd.DataFrame(ohlcv_15m, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            df_15m['timestamp'] = pd.to_datetime(df_15m['timestamp'], unit='ms')
+            df_15m.set_index('timestamp', inplace=True)
+            df_15m = guard_dataframe(df_15m, symbol, "15m")
+            if df_15m is not None:
+                return df_15m
+        except Exception as e:
+            logging.info(f"[get_crypto_15m_data] Binance hatası, yedeklere geçiliyor: {e}")
+
+    try:
+        try:
+            ohlcv_15m = exchange_fallback.fetch_ohlcv(symbol, '15m', limit=limit)
+        except Exception:
+            usd_sym = symbol.replace("/USDT", "/USD")
+            ohlcv_15m = exchange_fallback.fetch_ohlcv(usd_sym, '15m', limit=limit)
+
+        df_15m = pd.DataFrame(ohlcv_15m, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df_15m['timestamp'] = pd.to_datetime(df_15m['timestamp'], unit='ms')
+        df_15m.set_index('timestamp', inplace=True)
+        df_15m = guard_dataframe(df_15m, symbol, '15m')
+        return df_15m
+    except Exception as ekr:
+        try:
+            yf_ticker = get_yf_crypto_ticker(symbol)
+            df_15m = yf.download(yf_ticker, period=config.DATA_PERIOD_15M, interval="15m", progress=False)
+            df_15m = clean_yf_df(df_15m)
+            df_15m = guard_dataframe(df_15m, symbol, '15m')
+            return df_15m
+        except Exception as eyf:
+            logging.warning(f"[get_crypto_15m_data] {symbol} 15m verisi çekilemedi: {eyf}")
+            return None
+
 
 # 99 yapılmıştır
 # Emtia 1H veri periyodu config.DATA_PERIOD_1H parametresine bağlanmıştır.
