@@ -1864,7 +1864,7 @@ def build_sniper_scores(
         "volume_ratio":  score_volume_ratio(volume, vol_sma),
         "dollar_volume": score_dollar_volume(dollar_vol, market),
         "rr_ratio":      score_rr_ratio(rr, regime),
-        "regime":        score_regime(regime),
+        "regime":        score_regime(regime) if is_long else score_regime_short(regime),
         "macro":         score_macro_alignment(macro_aligned),
         "funding_rate":  score_funding_rate(funding_rate, direction="long" if is_long else "short") if market == "KRIPTO" else 0.0,
         "data_guard_penalty": dg_penalty,

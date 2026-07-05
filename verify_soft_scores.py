@@ -91,9 +91,9 @@ def test_calculate_conviction():
     result = calculate_conviction(scores, weights=weights)
     # Total: 10 factors * 100 * 0.1 = 100.0
     # + (-20.0) + (-10.0) = 70.0
-    # apply_bear_penalty -> 70.0 * 0.7 = 49.0 (eski: 70.0 * 0.6 = 42.0)
+    # apply_bear_penalty -> 70.0 * 0.91 * 0.7 = 44.59 -> 44.6
     print(f"Final Score: {result.total_score}")
-    assert result.total_score == 49.0
+    assert result.total_score == 44.6
 
 def test_sniper_soft_scoring():
     print("\nTesting Sniper Soft Scoring...")
