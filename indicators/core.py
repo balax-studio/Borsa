@@ -99,7 +99,15 @@ def inject_smart_indicators(df):
         # df.ta.ema(close=df_copy['WILLR_21'], length=13) might be better. Let's do it manually.
         df_copy['WILLR_21_EMA_13'] = df_copy['WILLR_21'].ewm(span=13, adjust=False).mean()
     
+    # Choppiness Index (CHOP) - Pandas-TA automatically names it CHOP_14_1_100
+    df_copy.ta.chop(length=14, append=True)
     
+    # Volume SMA 20 (for VSA No Demand/No Supply)
+    if TA_LIB_AVAILABLE:
+        df_copy['VOL_SMA_20'] = talib.SMA(df_copy['volume'].values, timeperiod=20)
+    else:
+        df_copy['VOL_SMA_20'] = df_copy['volume'].rolling(window=20).mean()
+        
     return df_copy
 
 def calculate_anchored_vwap_series(df, anchor_type="weekly"):

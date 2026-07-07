@@ -118,3 +118,69 @@ def sniper_calculate_ote_body(df, sweep_idx, msb_idx, direction="long"):
         ote_top = msb_body + (fib_range * config.FIB_786)
 
     return ote_top, ote_bottom
+
+def detect_vsa_fakeout(df, direction="long"):
+    """
+    GF-01: VSA No Demand / No Supply Breakout (Hacimsiz Kırılım Tuzağı)
+    Eğer yön LONG ise ve mum yeşilse, hacim < VOL_SMA_20 ise sahte kırılımdır (No Demand).
+    Eğer yön SHORT ise ve mum kırmızıysa, hacim < VOL_SMA_20 ise sahte kırılımdır (No Supply).
+    Returns: True (Fakeout/Tuzak), False (Temiz/Gerçek)
+    """
+    if len(df) < 20 or 'VOL_SMA_20' not in df.columns:
+        return False
+
+    last_candle = df.iloc[-1]
+    
+    if pd.isna(last_candle['VOL_SMA_20']):
+        return False
+        
+    volume = last_candle['volume']
+    vol_sma = last_candle['VOL_SMA_20']
+    
+    is_bullish = last_candle['close'] > last_candle['open']
+    is_bearish = last_candle['close'] < last_candle['open']
+    
+    if direction == "long" and is_bullish:
+        if volume < vol_sma:
+            return True # No Demand Breakout (Bull Trap)
+            
+    if direction == "short" and is_bearish:
+        if volume < vol_sma:
+            return True # No Supply Breakout (Bear Trap)
+            
+    return False
+
+def detect_bb_exhaustion_trap(df, direction="long"):
+    """
+    GF-03: Bollinger Band Exhaustion Trap (Aşırı Esneme Tuzağı)
+    Eğer bir önceki mum BB dışına tamamen çıktıysa ve güncel mum içeri girip ters yönde kapattıysa
+    bu bir exhaustion (tükenme) tuzağıdır.
+    Returns: True (Fakeout/Tuzak), False (Temiz)
+    """
+    bb_col_u = f'BBU_{config.IND_BBANDS_LENGTH}_{config.IND_BBANDS_STD}'
+    bb_col_l = f'BBL_{config.IND_BBANDS_LENGTH}_{config.IND_BBANDS_STD}'
+    
+    if bb_col_u not in df.columns or bb_col_l not in df.columns:
+        return False
+    if len(df) < 2:
+        return False
+        
+    prev = df.iloc[-2]
+    curr = df.iloc[-1]
+    
+    if pd.isna(prev[bb_col_u]) or pd.isna(prev[bb_col_l]):
+        return False
+        
+    if direction == "long":
+        # LONG sinyali geldi ama aslında bir boğa tuzağı (Bull Trap) mı?
+        # Eğer bir önceki mum BBU'nun üzerinde kapattıysa ve şu anki mum (kırmızı) BBU'nun altına geri girdiyse
+        if prev['close'] > prev[bb_col_u] and curr['close'] < curr['open'] and curr['close'] < curr[bb_col_u]:
+            return True
+            
+    elif direction == "short":
+        # SHORT sinyali geldi ama aslında bir ayı tuzağı (Bear Trap) mı?
+        # Eğer bir önceki mum BBL'nin altında kapattıysa ve şu anki mum (yeşil) BBL'nin üzerine geri çıktıysa
+        if prev['close'] < prev[bb_col_l] and curr['close'] > curr['open'] and curr['close'] > curr[bb_col_l]:
+            return True
+            
+    return False

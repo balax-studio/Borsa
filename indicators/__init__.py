@@ -11,6 +11,8 @@ from .anti_manipulation import (
     calculate_cmf,
     is_cmf_wash_trade,
     sniper_calculate_ote_body,
+    detect_vsa_fakeout,
+    detect_bb_exhaustion_trap,
 )
 from .smc import (
     sniper_get_htf_bias,
@@ -47,6 +49,8 @@ __all__ = [
     "calculate_cmf",
     "is_cmf_wash_trade",
     "sniper_calculate_ote_body",
+    "detect_vsa_fakeout",
+    "detect_bb_exhaustion_trap",
     "sniper_get_htf_bias",
     "sniper_find_swing_points",
     "sniper_detect_sweep",

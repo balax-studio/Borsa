@@ -19,6 +19,7 @@ from indicators import (
     sniper_detect_msb, sniper_detect_fvg,
     sniper_calculate_ote,
     detect_bearish_divergence, detect_adx_divergence,
+    detect_vsa_fakeout, detect_bb_exhaustion_trap,
 )
 from data_sources import get_crypto_1h_data, get_crypto_15m_data, get_funding_rate
 from strategies.helpers import (
@@ -67,6 +68,15 @@ class SniperOteShortStrategy(BaseStrategy):
         rsi_div, _, _, _, _ = detect_bearish_divergence(df_4h)
         adx_div = detect_adx_divergence(df_4h, is_long=False)
         ctx["has_divergence"] = rsi_div or adx_div
+
+        # GOLDEN FILTERS (Fakeout Guards)
+        if detect_vsa_fakeout(df_4h, direction="short"):
+            return signals
+        if detect_bb_exhaustion_trap(df_4h, direction="short"):
+            return signals
+        if 'CHOP_14_1_100' in df_4h.columns and len(df_4h) > 0:
+            if df_4h['CHOP_14_1_100'].iloc[-1] > 61.8:
+                return signals
 
         funding_rate = get_funding_rate(symbol)
         df_1h_crypto = None
@@ -254,6 +264,15 @@ class Sniper1hShortStrategy(BaseStrategy):
         rsi_div, _, _, _, _ = detect_bearish_divergence(ctx.get("df_4h"))
         adx_div = detect_adx_divergence(ctx.get("df_4h"), is_long=False)
         ctx_1h["has_divergence"] = rsi_div or adx_div
+
+        # GOLDEN FILTERS (Fakeout Guards)
+        if detect_vsa_fakeout(df_1h_sniper, direction="short"):
+            return signals
+        if detect_bb_exhaustion_trap(df_1h_sniper, direction="short"):
+            return signals
+        if 'CHOP_14_1_100' in df_1h_sniper.columns and len(df_1h_sniper) > 0:
+            if df_1h_sniper['CHOP_14_1_100'].iloc[-1] > 61.8:
+                return signals
 
         # Calculate wick rejection for SHORT (fakeout check)
         c_open = last_1h_s.get('open', current_price)
