@@ -15,6 +15,7 @@ from indicators import (
     sniper_find_swing_points, sniper_detect_sweep,
     sniper_detect_msb, sniper_detect_fvg,
     sniper_calculate_ote_body, sniper_calculate_ote,
+    detect_bullish_divergence, detect_adx_divergence,
 )
 from data_sources import get_crypto_1h_data, get_crypto_15m_data, get_funding_rate
 from indicators.smc import (
@@ -61,6 +62,10 @@ class SniperOteLongStrategy(BaseStrategy):
         has_fvg, _, _ = sniper_detect_fvg(df_4h, ote_top, ote_bottom, direction="bullish")
         if config.SMC_FVG_REQUIRED and not has_fvg:
             return signals
+
+        rsi_div, _, _, _, _ = detect_bullish_divergence(df_4h)
+        adx_div = detect_adx_divergence(df_4h, is_long=True)
+        ctx["has_divergence"] = rsi_div or adx_div
 
         funding_rate = get_funding_rate(symbol)
         df_1h_crypto = None
@@ -250,6 +255,10 @@ class Sniper1hLongStrategy(BaseStrategy):
         in_supply_zone = is_price_in_supply_zone(current_price, supply_zones)
         demand_zones = detect_demand_zones(ctx.get("df_4h"))
         in_demand_zone = is_price_in_demand_zone(current_price, demand_zones)
+        
+        rsi_div, _, _, _, _ = detect_bullish_divergence(ctx.get("df_4h"))
+        adx_div = detect_adx_divergence(ctx.get("df_4h"), is_long=True)
+        ctx_1h["has_divergence"] = rsi_div or adx_div
 
         # Calculate wick rejection for LONG (fakeout check)
         c_open = last_1h_s.get('open', current_price)
@@ -267,6 +276,7 @@ class Sniper1hLongStrategy(BaseStrategy):
         is_wick_rejection_prev = (p_upper_wick > (p_body * 2.0)) if p_body > 0 else False
         
         is_wick_rejection = is_wick_rejection_current or is_wick_rejection_prev
+        ctx_1h["is_fakeout"] = is_wick_rejection
 
         blocked, block_reason = check_hard_blocks(
             volume=last_1h_s.get('volume', 0),
@@ -282,7 +292,8 @@ class Sniper1hLongStrategy(BaseStrategy):
             min_volume_usd=config.VOL_ABSOLUTE_MIN_CRYPTO,
             willy_ema=willy_ema_15m_val,
             is_long=True,
-            is_wick_rejection=is_wick_rejection
+            is_wick_rejection=is_wick_rejection,
+            is_crypto=True
         )
         if blocked:
             return signals

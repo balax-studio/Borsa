@@ -422,6 +422,73 @@ def detect_bullish_divergence(df_4h, neighbors=3):
     return False, None, None, None, None
 
 
+def detect_adx_divergence(df, is_long=True, neighbors=3):
+    """
+    ADX Divergence tespit eder (Trend yorgunluğu).
+    Fiyat lower low yaparken ADX lower high yapıyorsa (Düşüş momentumu azalıyor -> Bullish Divergence)
+    Fiyat higher high yaparken ADX lower high yapıyorsa (Yükseliş momentumu azalıyor -> Bearish Divergence)
+    """
+    if df is None or len(df) < 30:
+        return False
+        
+    df_temp = df.copy()
+    # Check if ADX exists, else compute
+    if 'ADX_14' not in df_temp.columns:
+        df_temp.ta.adx(length=14, append=True)
+    
+    adx_col = 'ADX_14'
+    if adx_col not in df_temp.columns:
+        return False
+
+    lows = df_temp['low'].values
+    highs = df_temp['high'].values
+    n = len(df_temp)
+    swing_points = []
+
+    for i in range(neighbors, n - 1):
+        is_swing = True
+        for j in range(1, neighbors + 1):
+            if i - j < 0 or i + j >= n:
+                is_swing = False
+                break
+            if is_long:
+                if lows[i] >= lows[i - j] or lows[i] >= lows[i + j]:
+                    is_swing = False
+                    break
+            else:
+                if highs[i] <= highs[i - j] or highs[i] <= highs[i + j]:
+                    is_swing = False
+                    break
+        if is_swing:
+            swing_points.append(i)
+
+    if len(swing_points) < 2:
+        return False
+
+    idx1, idx2 = swing_points[-2], swing_points[-1]
+    
+    if is_long:
+        price_1 = float(df_temp.iloc[idx1]['low'])
+        price_2 = float(df_temp.iloc[idx2]['low'])
+    else:
+        price_1 = float(df_temp.iloc[idx1]['high'])
+        price_2 = float(df_temp.iloc[idx2]['high'])
+        
+    adx_1 = float(df_temp.iloc[idx1][adx_col])
+    adx_2 = float(df_temp.iloc[idx2][adx_col])
+
+    if is_long:
+        # Fiyat lower low, ADX lower high
+        if price_2 < price_1 and adx_2 < adx_1 and (adx_1 - adx_2) >= 1.0:
+            return True
+    else:
+        # Fiyat higher high, ADX lower high
+        if price_2 > price_1 and adx_2 < adx_1 and (adx_1 - adx_2) >= 1.0:
+            return True
+
+    return False
+
+
 def detect_bos_choch_zones(df, pivot_lookbacks=[1, 2, 3, 5, 11, 15, 20], max_boxes=50, require_inducement=False):
     """
     SMC tabanlı Supply (Arz) ve Demand (Talep) bölgelerini tespit eder.

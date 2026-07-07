@@ -855,6 +855,63 @@ def check_btc_not_pumping():
     _set_cached('btc_pumping', res)
     return res
 
+def check_btc_flash_crash():
+    """HB-12 BTC Flash Volatility Guard
+    Checks if BTC has experienced extreme volatility recently (e.g. > 3% in last 1H candle or huge ATR spike).
+    Returns True if crashed/highly volatile.
+    """
+    cached = _get_cached('btc_flash_crash')
+    if cached is not None:
+        return cached
+
+    res = False
+    df = None
+    if not IS_USA_SERVER:
+        try:
+            ohlcv = exchange.fetch_ohlcv("BTC/USDT", '1h', limit=14)
+            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        except Exception as e:
+            logging.info(f"[check_btc_flash_crash] Binance hatası, yedeklere geçiliyor: {e}")
+
+    if df is None:
+        try:
+            ohlcv = exchange_fallback.fetch_ohlcv("BTC/USDT", '1h', limit=14)
+            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        except Exception as ekr:
+            try:
+                df = yf.download("BTC-USD", period="2d", interval="1h", progress=False)
+                df = clean_yf_df(df)
+            except Exception as eyf:
+                logging.warning(f"[check_btc_flash_crash] Veri çekilemedi: {eyf}")
+                _set_cached('btc_flash_crash', False)
+                return False
+
+    try:
+        if len(df) >= 2:
+            last_close = df['close'].iloc[-1]
+            last_open = df['open'].iloc[-1]
+            prev_close = df['close'].iloc[-2]
+            
+            candle_pct = abs((last_close - last_open) / last_open) * 100
+            drop_pct = abs((last_close - prev_close) / prev_close) * 100
+            
+            if candle_pct > 2.5 or drop_pct > 3.5:
+                res = True
+                
+            if len(df) >= 14:
+                df.ta.atr(length=14, append=True)
+                atr_col = 'ATRr_14' if 'ATRr_14' in df.columns else df.columns[-1]
+                last_atr = df[atr_col].iloc[-1]
+                if not pd.isna(last_atr) and last_close > 0:
+                    atr_pct = (last_atr / last_close) * 100
+                    if atr_pct > 2.0: 
+                        res = True
+    except Exception as e:
+        logging.warning(f"[check_btc_flash_crash] analiz hatası: {e}")
+
+    _set_cached('btc_flash_crash', res)
+    return res
+
 def _get_btc_htf_bias():
     """BTC'nin 1 Günlük HTF Bias'ını kontrol et (altcoin taraması için 1 kez çağrılır)."""
     cached = _get_cached('btc_htf_bias')

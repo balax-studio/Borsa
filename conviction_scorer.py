@@ -732,6 +732,7 @@ def check_hard_blocks(
     willy_ema: float = None,
     is_long: bool = False,
     is_wick_rejection: bool = False,
+    is_crypto: bool = False,
 ) -> tuple:
     """
     Asla esnetilemeyen güvenlik kontrolleri. (Sadece NaN, Karantina, Devre Kesici)
@@ -768,8 +769,17 @@ def check_hard_blocks(
         if not is_long and willy_ema < -80:
             return True, "HB-10: Varlık aşırı satımda (Willy EMA < -80), SHORT girilemez"
 
-    if is_wick_rejection:
-        return True, "HB-11: Mum kapanışı reddedildi (Liquidity Sweep / Wick Rejection), sahte kırılım (Fakeout) riski!"
+    if is_crypto:
+        try:
+            import data_sources
+            if data_sources.check_btc_flash_crash():
+                return True, "HB-12: BTC Flash Volatility Guard devrede, piyasa aşırı volatil!"
+        except Exception as e:
+            logger.warning(f"[check_hard_blocks] HB-12 check failed: {e}")
+
+    # HB-11 (Fakeout) is handled in calculate_conviction as a WATCH override
+    # if is_wick_rejection:
+    #     return True, "HB-11: Mum kapanışı reddedildi (Liquidity Sweep / Wick Rejection), sahte kırılım (Fakeout) riski!"
 
     return False, ""
 
@@ -1042,6 +1052,12 @@ def calculate_conviction(
         nan_penalty = -6.75
         logger.debug("[Conviction] NaN veri tespit edildi, -6.75 soft ceza uygulandı.")
 
+    is_crypto = False
+    if ctx is not None:
+        market = str(ctx.get("market", "")).upper()
+        if market in ["KRIPTO", "KRİPTO", "CRYPTO"]:
+            is_crypto = True
+
     if not hard_blocked and ctx is not None:
         symbol = ctx.get("symbol")
         is_q = ctx.get("is_quarantined", False)
@@ -1066,6 +1082,14 @@ def calculate_conviction(
         elif is_cb:
             hard_blocked = True
             block_reason = "HB-3: Devre Kesici aktif — sistem korumada"
+        elif is_crypto:
+            try:
+                from data_sources import check_btc_flash_crash
+                if check_btc_flash_crash():
+                    hard_blocked = True
+                    block_reason = "HB-12: BTC Flash Volatility Guard"
+            except Exception as e:
+                logger.error(f"[Conviction] BTC Flash Crash kontrol edilemedi: {e}")
 
     result.hard_blocked = hard_blocked
     result.hard_block_reason = block_reason
@@ -1077,11 +1101,7 @@ def calculate_conviction(
         logger.debug(f"[Conviction] Hard Block: {block_reason}")
         return result
 
-    is_crypto = False
-    if ctx is not None:
-        market = str(ctx.get("market", "")).upper()
-        if market in ["KRIPTO", "KRİPTO", "CRYPTO"]:
-            is_crypto = True
+
 
     if weights is None:
         w = CRYPTO_WEIGHTS if is_crypto else WEIGHTS
@@ -1201,6 +1221,12 @@ def calculate_conviction(
     total += fuzzy_filter_penalty
     total += willy_ema_penalty
     
+    # Divergence Bonus
+    divergence_bonus = 0.0
+    if ctx is not None and ctx.get("has_divergence") is True:
+        divergence_bonus = 15.0
+    total += divergence_bonus
+    
     # 10x leverage penalty for SL > 1%
     sl_distance_penalty = 0.0
     if ctx is not None:
@@ -1217,6 +1243,7 @@ def calculate_conviction(
     result.component_scores["sl_distance_penalty"] = round(sl_distance_penalty, 1)
     result.component_scores["fuzzy_filter_penalty"] = round(fuzzy_filter_penalty, 1)
     result.component_scores["willy_ema_penalty"] = round(willy_ema_penalty, 1)
+    result.component_scores["divergence_bonus"] = round(divergence_bonus, 1)
     
     # V3.8: Apply global CONVICTION_SCORE_MULTIPLIER to the final score
     score_multiplier = getattr(config, "CONVICTION_SCORE_MULTIPLIER", 1.0)
@@ -1252,6 +1279,11 @@ def calculate_conviction(
         result.grade = CONVICTION_WATCH
     else:
         result.grade = CONVICTION_REJECT
+
+    is_fakeout = ctx.get("is_fakeout", False) if ctx is not None else False
+    if is_fakeout:
+        result.grade = CONVICTION_WATCH
+        logger.info("[Conviction] Fakeout protected signal forced to WATCH")
 
     result.position_size_pct = POSITION_SIZE_MAP.get(result.grade, 0)
 
