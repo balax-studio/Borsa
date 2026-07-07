@@ -55,9 +55,10 @@ def read_last_logs(num_lines=50):
     if not os.path.exists(LOG_FILE):
         return ["Log dosyası henüz oluşturulmadı. Bot başladığında loglar burada görünecektir."]
     try:
+        from collections import deque
         with open(LOG_FILE, "r", encoding="utf-8", errors="ignore") as f:
-            lines = f.readlines()
-            return [line.strip() for line in lines[-num_lines:]]
+            lines = deque(f, maxlen=num_lines)
+            return [line.strip() for line in lines]
     except Exception as e:
         return [f"Log okuma hatası: {e}"]
 
@@ -155,8 +156,9 @@ def _parse_scan_stats():
     if not os.path.exists(LOG_FILE):
         return {}
     try:
+        from collections import deque
         with open(LOG_FILE, 'r', encoding='utf-8', errors='ignore') as f:
-            lines = f.readlines()[-100:]
+            lines = list(deque(f, maxlen=100))
         total_signals = 0
         last_scan_duration = 'N/A'
         dg_rejects = 0
@@ -197,8 +199,9 @@ def _parse_dataguard_stats():
     if not os.path.exists(LOG_FILE):
         return {}
     try:
+        from collections import deque
         with open(LOG_FILE, 'r', encoding='utf-8', errors='ignore') as f:
-            lines = f.readlines()[-200:]
+            lines = list(deque(f, maxlen=200))
         dg_counts = {'DG-01': 0, 'DG-02': 0, 'DG-04': 0, 'DG-06': 0}
         for line in lines:
             for dg in dg_counts:
@@ -253,23 +256,45 @@ class DashboardHandler(BaseHTTPRequestHandler):
             self.send_header("Expires", "0")
             self.end_headers()
 
-            # Sunucu RAM bilgisi
+            # Sunucu Metrikleri
             ram_info = "N/A"
             try:
-                with open("/proc/meminfo", "r") as f:
-                    lines = f.readlines()
-                    total = int(lines[0].split()[1]) // 1024
-                    free = int(lines[1].split()[1]) // 1024
-                    used = total - free
-                    ram_info = f"{used}/{total}MB"
-            except Exception as e:
-                import logging
-                logging.error(f"Beklenmeyen hata: {e}")
+                t, f, a, b, c = 0, 0, 0, 0, 0
+                with open("/proc/meminfo", "r") as fh:
+                    for line in fh:
+                        if line.startswith("MemTotal:"): t = int(line.split()[1]) // 1024
+                        elif line.startswith("MemFree:"): f = int(line.split()[1]) // 1024
+                        elif line.startswith("MemAvailable:"): a = int(line.split()[1]) // 1024
+                        elif line.startswith("Buffers:"): b = int(line.split()[1]) // 1024
+                        elif line.startswith("Cached:"): c = int(line.split()[1]) // 1024
+                used = t - (a if a > 0 else (f + b + c))
+                ram_info = f"{used}/{t}MB"
+            except Exception:
+                pass
+                
+            cpu_load = "N/A"
+            try:
+                l1, l5, l15 = os.getloadavg()
+                cpu_load = f"{l1:.2f} (1m)"
+            except Exception:
+                pass
+                
+            disk_info = "N/A"
+            try:
+                st = os.statvfs('/')
+                t_gb = (st.f_blocks * st.f_frsize) / (1024**3)
+                f_gb = (st.f_bfree * st.f_frsize) / (1024**3)
+                u_gb = t_gb - f_gb
+                disk_info = f"{u_gb:.1f}/{t_gb:.1f}GB"
+            except Exception:
+                pass
 
             response_data = {
                 "status": {
                     "uptime": get_uptime(),
                     "ram": ram_info,
+                    "cpu": cpu_load,
+                    "disk": disk_info,
                     "last_scan": datetime.datetime.now().strftime("%H:%M:%S"),
                     "status": "AKTIF"
                 },
@@ -562,12 +587,13 @@ class DashboardHandler(BaseHTTPRequestHandler):
         .hdr a{color:#787774;font-family:'Geist Mono',monospace;font-size:11px;text-decoration:none;transition:color 0.2s}
         .hdr a:hover{color:#EAEAEA}
         .section{margin-bottom:48px;border-top:1px solid #2F3437;padding-top:24px}
-        .section-hdr{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:24px}
+        .section-hdr{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
         h3{font-family:'Geist Mono',monospace;font-size:11px;color:#787774;text-transform:uppercase;letter-spacing:0.05em;font-weight:500}
-        .kv{display:flex;flex-wrap:wrap;gap:32px}
+        .kv{display:flex;flex-wrap:wrap;gap:24px;margin-bottom:16px;}
         .kv .k{color:#787774;font-family:'Geist Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;display:block}
         .kv .v{color:#EAEAEA;font-size:15px;font-weight:400}
-        table{width:100%;border-collapse:collapse;font-size:13px}
+        .table-responsive{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+        table{width:100%;border-collapse:collapse;font-size:13px;min-width:700px;}
         th{text-align:left;color:#787774;font-family:'Geist Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;font-weight:400;padding:8px 0;border-bottom:1px solid #2F3437}
         td{padding:12px 0;border-bottom:1px solid #2F3437;color:#EAEAEA}
         .badge{display:inline-block;padding:2px 8px;border-radius:9999px;font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:0.05em}
@@ -577,17 +603,24 @@ class DashboardHandler(BaseHTTPRequestHandler):
         .b-reject{background:#FDEBEC;color:#9F2F2D}
         .bar-container{display:flex;gap:2px;margin-top:8px;height:4px;width:100%}
         .bar{height:100%;border-radius:2px}
-        .log-box{font-family:'Geist Mono',monospace;font-size:11px;line-height:1.8;max-height:300px;overflow-y:auto;color:#EAEAEA}
+        .log-box{font-family:'Geist Mono',monospace;font-size:11px;line-height:1.8;max-height:300px;overflow-y:auto;color:#EAEAEA;padding:12px;background:#181818;border-radius:4px;border:1px solid #2F3437;}
         .log-box .info{color:#787774}
         .log-box .warn{color:#956400}
         .log-box .error{color:#9F2F2D}
         .log-box .conviction{color:#1F6C9F}
         .empty{color:#787774;font-style:italic}
-        .metric-block{display:flex;flex-direction:column}
-        .close-btn{background:#9F2F2D;color:#FDEBEC;border:none;padding:4px 8px;border-radius:4px;font-family:'Geist Mono',monospace;font-size:10px;cursor:pointer;transition:transform 0.2s}
+        .metric-block{display:flex;flex-direction:column;min-width:100px;}
+        .close-btn{background:#9F2F2D;color:#FDEBEC;border:none;padding:4px 8px;border-radius:4px;font-family:'Geist Mono',monospace;font-size:10px;cursor:pointer;transition:transform 0.2s;white-space:nowrap;}
         .close-btn:hover{transform:scale(0.95)}
         .fade-in{animation:fadeIn 0.6s cubic-bezier(0.16,1,0.3,1) both}
         @keyframes fadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+        @media (max-width:768px){
+            body{padding:16px;}
+            .hdr{flex-direction:column;align-items:flex-start;gap:12px;}
+            .kv{gap:16px; justify-content:space-between;}
+            .metric-block{width:45%;}
+            .section-hdr{flex-direction:column;gap:12px;}
+        }
     </style>
 </head>
 <body>
@@ -604,23 +637,26 @@ class DashboardHandler(BaseHTTPRequestHandler):
     <div class="section fade-in" style="animation-delay: 80ms">
         <div class="section-hdr">
             <h3>System Intelligence</h3>
-            <div style="display:flex; gap:8px;">
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
                 <button class="close-btn" onclick="resetPenalty()" style="background:#222; border:1px solid #333; color:#EAEAEA; font-size:10px;">CEZA KUTUSUNU SIFIRLA</button>
                 <button class="close-btn" onclick="resetCircuitBreaker()" style="background:#222; border:1px solid #333; color:#EAEAEA; font-size:10px;">SESSİZ MODLARI SIFIRLA</button>
             </div>
         </div>
         <div class="kv">
+            <div class="metric-block"><span class="k">RAM</span><span class="v" id="s-ram" style="font-family:'Geist Mono',monospace;">—</span></div>
+            <div class="metric-block"><span class="k">CPU</span><span class="v" id="s-cpu" style="font-family:'Geist Mono',monospace;">—</span></div>
+            <div class="metric-block"><span class="k">Disk</span><span class="v" id="s-disk" style="font-family:'Geist Mono',monospace;">—</span></div>
             <div class="metric-block"><span class="k">Last Scan</span><span class="v" id="s-scan">—</span></div>
             <div class="metric-block"><span class="k">Duration</span><span class="v" id="sc-dur">—</span></div>
             <div class="metric-block"><span class="k">Signals</span><span class="v" id="sc-sig">—</span></div>
             <div class="metric-block"><span class="k">Win Rate</span><span class="v" id="s-winrate">—</span></div>
-            <div class="metric-block"><span class="k">Circuit Breaker</span><span class="v" id="s-cb" style="font-family:'Geist Mono',monospace;font-size:12px">—</span></div>
+            <div class="metric-block" style="width:100%;"><span class="k">Circuit Breaker</span><span class="v" id="s-cb" style="font-family:'Geist Mono',monospace;font-size:12px">—</span></div>
         </div>
         <div id="penalty-box-container" style="margin-top:24px; display:none;">
-            <span class="k" style="margin-bottom:8px;">Ceza Kutusundaki Varlıklar</span>
+            <span class="k" style="margin-bottom:8px; color:#787774; font-family:'Geist Mono',monospace; font-size:10px; text-transform:uppercase;">Ceza Kutusundaki Varlıklar</span>
             <div id="penalty-assets-list" style="font-family:'Geist Mono',monospace; font-size:12px; color:#EAEAEA;"></div>
         </div>
-        <div id="conv-dist" style="margin-top:24px;width:300px"></div>
+        <div id="conv-dist" style="margin-top:24px;width:100%;max-width:300px"></div>
     </div>
 
     <!-- ACTIVE TRADES -->
@@ -629,10 +665,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
             <h3>Active Deployments (<span id="trade-count">0</span>)</h3>
             <button class="close-btn" onclick="closeAllTrades()" style="padding:6px 12px; font-size:11px;">TÜM POZİSYONLARI KAPAT</button>
         </div>
-        <table id="trade-table">
-            <thead><tr><th onclick="sortTrades('ticker')" style="cursor:pointer" title="Sırala">Ticker ↕</th><th>Dir</th><th>Strategy</th><th>Entry</th><th>SL</th><th>TP</th><th onclick="sortTrades('conviction_score')" style="cursor:pointer" title="Sırala">Conviction ↕</th><th>Status</th><th>Aksiyon</th></tr></thead>
-            <tbody id="trade-body"><tr><td colspan="9" class="empty">No active deployments.</td></tr></tbody>
-        </table>
+        <div class="table-responsive">
+            <table id="trade-table">
+                <thead><tr><th onclick="sortTrades('ticker')" style="cursor:pointer" title="Sırala">Ticker ↕</th><th>Dir</th><th>Strategy</th><th>Entry</th><th>SL</th><th>TP</th><th onclick="sortTrades('conviction_score')" style="cursor:pointer" title="Sırala">Conviction ↕</th><th>Status</th><th>Aksiyon</th></tr></thead>
+                <tbody id="trade-body"><tr><td colspan="9" class="empty">No active deployments.</td></tr></tbody>
+            </table>
+        </div>
     </div>
 
     <!-- PERFORMANCE ANALYTICS -->
@@ -783,6 +821,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 const s=d.status||{};
                 document.getElementById('s-uptime').textContent='UPTIME: '+ (s.uptime||'—');
                 document.getElementById('s-scan').textContent=s.last_scan||'—';
+                if(document.getElementById('s-ram')) document.getElementById('s-ram').textContent = s.ram || '—';
+                if(document.getElementById('s-cpu')) document.getElementById('s-cpu').textContent = s.cpu || '—';
+                if(document.getElementById('s-disk')) document.getElementById('s-disk').textContent = s.disk || '—';
                 
                 const cb=d.circuit_breaker||{};
                 const strats=cb.strategies||{};
