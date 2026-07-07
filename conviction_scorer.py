@@ -1229,11 +1229,11 @@ def calculate_conviction(
         adx_score = scores.get("adx", 50.0)
         vol_score = scores.get("volume_ratio", 50.0)
         
-        # Dinamik hesap: Ortalamada (50,50) = 12 puan. Max (100,100) = 24 puan.
-        dyn_bonus = (adx_score * 0.12) + (vol_score * 0.12)
+        # Dinamik hesap (Puanlar yarıya düşürüldü): Ortalamada (50,50) = 6 puan. Max (100,100) = 12 puan.
+        dyn_bonus = (adx_score * 0.06) + (vol_score * 0.06)
         
-        # Ekstrem durumları önlemek için bonusu 5 ile 20 puan arasına sınırla
-        divergence_bonus = max(5.0, min(dyn_bonus, 20.0))
+        # Ekstrem durumları önlemek için bonusu 2.5 ile 10 puan arasına sınırla
+        divergence_bonus = max(2.5, min(dyn_bonus, 10.0))
         logger.debug(f"[Conviction] Dinamik Uyumsuzluk Bonusu: {divergence_bonus:.1f} (ADX skoru: {adx_score:.1f}, Vol skoru: {vol_score:.1f})")
     total += divergence_bonus
     
