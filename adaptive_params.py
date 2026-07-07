@@ -248,6 +248,7 @@ def get_last_adaptive_state() -> dict:
         try:
             with open(ADAPTIVE_STATE_FILE, 'r', encoding='utf-8') as f:
                 return json.load(f)
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.error(f"Beklenmeyen hata: {e}")
     return {}

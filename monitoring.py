@@ -24,8 +24,9 @@ from dotenv import load_dotenv
 if sys.stdout.encoding != "utf-8":
     try:
         sys.stdout.reconfigure(encoding="utf-8")
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.error(f"Beklenmeyen hata: {e}")
 
 # ════ Profesyonel Logging Yapılandırması ════
 logger = logging.getLogger("quant_bot_monitor")
@@ -71,6 +72,10 @@ def send_telegram_alert(message: str):
 
     for cid in CHAT_IDS:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        if not url.startswith("https://"):
+            logger.error("Güvensiz URL şeması tespit edildi.")
+            continue
+        
         payload = {
             "chat_id": cid,
             "text": message,

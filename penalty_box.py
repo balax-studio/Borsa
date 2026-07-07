@@ -53,8 +53,9 @@ def _save_state_unlocked(state: dict):
         if tmp_path and os.path.exists(tmp_path):
             try:
                 os.remove(tmp_path)
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.error(f"Beklenmeyen hata: {e}")
 
 
 def _load_state() -> dict:
@@ -307,8 +308,9 @@ def get_penalty_status() -> str:
                 try:
                     until = datetime.fromisoformat(cooldown_until)
                     is_penalized = now < until
-                except Exception:
-                    pass
+                except Exception as e:
+                    import logging
+                    logging.error(f"Beklenmeyen hata: {e}")
             if is_penalized:
                 penalized.append(f"{ticker}({consec}SL)")
             elif consec >= 2:
@@ -348,8 +350,9 @@ def prune_old_assets(max_age_days: int = 90):
                     until = datetime.fromisoformat(cooldown)
                     if now < until:
                         continue
-                except Exception:
-                    pass
+                except Exception as e:
+                    import logging
+                    logging.error(f"Beklenmeyen hata: {e}")
             # Son SL zamanına bak
             last_sl = data.get("last_sl_time", "")
             if last_sl:

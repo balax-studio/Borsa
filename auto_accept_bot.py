@@ -36,11 +36,18 @@ def find_vscode_hwnd():
     return hwnd_list[0] if hwnd_list else None
 
 def find_and_click_blue_button(hwnd):
+    hwndDC = None
+    mfcDC = None
+    saveDC = None
+    saveBitMap = None
     try:
         rect = win32gui.GetWindowRect(hwnd)
         w = rect[2] - rect[0]
         h = rect[3] - rect[1]
         
+        if w <= 0 or h <= 0:
+            return False
+            
         hwndDC = win32gui.GetWindowDC(hwnd)
         mfcDC  = win32ui.CreateDCFromHandle(hwndDC)
         saveDC = mfcDC.CreateCompatibleDC()
@@ -54,32 +61,37 @@ def find_and_click_blue_button(hwnd):
         
         if result:
             # Sağ alt panel bölgesini tara (X: Sağdan 180 ile 15 piksel arası, Y: Alttan 140 ile 75 piksel arası)
-            # Y limitini 75 yaparak en alttaki chat girdi alanındaki (mesaj gönderme) mavi butonu tarama dışı bırakıyoruz.
             start_x = max(0, w - 180)
             end_x = min(w - 15, w - 1)
             start_y = max(0, h - 140)
             end_y = min(h - 75, h - 1)
             
+            bmpstr = saveBitMap.GetBitmapBits(True)
+            row_bytes = w * 4
+            
             for y in range(start_y, end_y + 1):
+                y_offset = y * row_bytes
                 for x in range(start_x, end_x + 1):
-                    color = saveDC.GetPixel(x, y)
-                    r = color & 0xff
-                    g = (color >> 8) & 0xff
-                    b = (color >> 16) & 0xff
+                    idx = y_offset + (x * 4)
+                    if idx + 2 >= len(bmpstr):
+                        continue
+                        
+                    b = bmpstr[idx]
+                    g = bmpstr[idx+1]
+                    r = bmpstr[idx+2]
                     
-                    # Genişletilmiş mavi renk tanımı (Mavi belirgin şekilde baskın olmalı)
-                    # VS Code mavi buton renkleri genellikle R: ~0-40, G: ~90-150, B: ~160-255 aralığındadır.
                     if b > 140 and r < 80 and b > r + 50:
-                        # YAZI/LİNK KONTROLÜ: Butonlar katı mavi bloklardır.
-                        # Tespit edilen pikselin 5x5'lik çevresinin de mavi olup olmadığını kontrol edelim.
-                        # Bu sayede ince mavi yazılara (linkler, mentionlar) tıklanmasını engelleriz.
                         is_solid_block = True
                         for check_y in range(y, min(y + 5, end_y + 1)):
+                            check_y_offset = check_y * row_bytes
                             for check_x in range(x, min(x + 5, end_x + 1)):
-                                n_color = saveDC.GetPixel(check_x, check_y)
-                                nr = n_color & 0xff
-                                ng = (n_color >> 8) & 0xff
-                                nb = (n_color >> 16) & 0xff
+                                c_idx = check_y_offset + (check_x * 4)
+                                if c_idx + 2 >= len(bmpstr):
+                                    is_solid_block = False
+                                    break
+                                nb = bmpstr[c_idx]
+                                ng = bmpstr[c_idx+1]
+                                nr = bmpstr[c_idx+2]
                                 if not (nb > 130 and nr < 90 and nb > nr + 40):
                                     is_solid_block = False
                                     break
@@ -87,12 +99,6 @@ def find_and_click_blue_button(hwnd):
                                 break
                                 
                         if is_solid_block:
-                            # Temizlik
-                            win32gui.DeleteObject(saveBitMap.GetHandle())
-                            saveDC.DeleteDC()
-                            mfcDC.DeleteDC()
-                            win32gui.ReleaseDC(hwnd, hwndDC)
-                            
                             print(f"[{time.strftime('%H:%M:%S')}] Katı mavi buton bloğu algılandı ({x}, {y}) [R:{r}, G:{g}, B:{b}]. Tıklanıyor...")
                             click_in_background(hwnd, x + 2, y + 2)
                             return True
@@ -100,16 +106,29 @@ def find_and_click_blue_button(hwnd):
             if int(time.time()) % 3 == 0:
                 print(f"[{time.strftime('%H:%M:%S')}] Sağ alt alan taranıyor - Mavi buton bulunamadı.")
                 
-        # Temizlik
-        win32gui.DeleteObject(saveBitMap.GetHandle())
-        saveDC.DeleteDC()
-        mfcDC.DeleteDC()
-        win32gui.ReleaseDC(hwnd, hwndDC)
         return False
     except Exception as e:
         if int(time.time()) % 3 == 0:
             print(f"HATA find_and_click_blue_button: {e}")
         return False
+    finally:
+        # Temizlik - Memory leak ve GDI kilitlenmelerini onlemek icin garanti temizlik
+        if saveBitMap is not None:
+            try:
+                win32gui.DeleteObject(saveBitMap.GetHandle())
+            except: pass
+        if saveDC is not None:
+            try:
+                saveDC.DeleteDC()
+            except: pass
+        if mfcDC is not None:
+            try:
+                mfcDC.DeleteDC()
+            except: pass
+        if hwndDC is not None:
+            try:
+                win32gui.ReleaseDC(hwnd, hwndDC)
+            except: pass
 
 def click_in_background(hwnd, x, y):
     lParam = win32api.MAKELONG(x, y)

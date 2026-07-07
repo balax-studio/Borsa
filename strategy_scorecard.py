@@ -43,8 +43,9 @@ def _save_state_unlocked(state: dict):
         if tmp_path and os.path.exists(tmp_path):
             try:
                 os.remove(tmp_path)
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.error(f"Beklenmeyen hata: {e}")
 
 
 def _load_state() -> dict:

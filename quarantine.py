@@ -312,8 +312,9 @@ def cleanup_expired_quarantines(max_age_hours: int = 168):
                     age_hours = (now - qt_time).total_seconds() / 3600
                     if age_hours > max_age_hours:
                         expired.append(ticker)
-                except Exception:
-                    pass
+                except Exception as e:
+                    import logging
+                    logging.error(f"Beklenmeyen hata: {e}")
         
         for ticker in expired:
             del quarantined[ticker]

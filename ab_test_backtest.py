@@ -10,8 +10,9 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 import pandas as pd
 import yfinance as yf
-import pickle
+import json
 import warnings
+from io import StringIO
 from datetime import datetime
 warnings.filterwarnings('ignore')
 
@@ -67,11 +68,16 @@ YF_MAP = {
     "TRX/USDT": "TRX-USD"
 }
 
-CACHE_FILE = "backtest_data_cache.pkl"
+CACHE_FILE = "backtest_data_cache.json"
 if os.path.exists(CACHE_FILE):
     print("Loading data from local cache...")
-    with open(CACHE_FILE, 'rb') as f:
-        data_cache = pickle.load(f)
+    with open(CACHE_FILE, 'r') as f:
+        raw_cache = json.load(f)
+    data_cache = {}
+    for coin, timeframes in raw_cache.items():
+        data_cache[coin] = {}
+        for tf, df_json in timeframes.items():
+            data_cache[coin][tf] = pd.read_json(StringIO(df_json), orient='split')
 else:
     print("Downloading historical data from yfinance...")
     data_cache = {}
@@ -94,8 +100,14 @@ else:
             '4h': df_4h,
             '1h': df_1h
         }
-    with open(CACHE_FILE, 'wb') as f:
-        pickle.dump(data_cache, f)
+    print("Saving data to cache...")
+    raw_cache = {}
+    for coin, timeframes in data_cache.items():
+        raw_cache[coin] = {}
+        for tf, df in timeframes.items():
+            raw_cache[coin][tf] = df.to_json(orient='split', date_format='iso')
+    with open(CACHE_FILE, 'w') as f:
+        json.dump(raw_cache, f)
     print("Data cached successfully!")
 
 def run_simulation(min_score, adx_start, adx_mult):

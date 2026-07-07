@@ -36,7 +36,8 @@ async def main():
                         pass
                         # Implement parsing if needed
         except Exception as e:
-            pass
+            import logging
+            logging.error(f"Beklenmeyen hata: {e}")
 
     if not signals:
         # Fallback to a mock high score signal to demonstrate

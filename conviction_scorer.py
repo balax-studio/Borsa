@@ -311,12 +311,16 @@ def calculate_autopsy_soft_penalty(
     # 3. Kırılım Hacmi (Volume Ratio) Soft Cezası
     # Zayıf breakout volume (displacement eksikliği) cezalandırılır
     # Eşik: Trend/Breakout için 3.5x, Mean Reversion/Dip için 3.0x
-    # Gelen hacim oranına göre ceza lineer ölçeklenir (sabit -10 yerine, maks -3.75 - %25 indirimli)
+    # Kripto için Hacim < 1.5x ise Fakeout riski yüksektir, ağır cezalandırılır.
     if not _is_nan(volume_ratio):
         threshold = 3.5 if is_trend else 3.0
         if volume_ratio < threshold:
             ratio_clamped = max(0.0, volume_ratio)
             penalty -= ((threshold - ratio_clamped) / threshold) * 3.75
+            
+        # Kripto 10 Fakeout Filtresi: Düşük hacimli kırılıma ekstrem ceza
+        if is_trend and volume_ratio < 1.5:
+            penalty -= 15.0  # Sinyalin kalitesini WATCH veya REJECT'e düşürür
             
     return round(penalty, 2)
 
@@ -727,6 +731,7 @@ def check_hard_blocks(
     in_supply_zone: bool = None,
     willy_ema: float = None,
     is_long: bool = False,
+    is_wick_rejection: bool = False,
 ) -> tuple:
     """
     Asla esnetilemeyen güvenlik kontrolleri. (Sadece NaN, Karantina, Devre Kesici)
@@ -762,6 +767,9 @@ def check_hard_blocks(
     if willy_ema is not None:
         if not is_long and willy_ema < -80:
             return True, "HB-10: Varlık aşırı satımda (Willy EMA < -80), SHORT girilemez"
+
+    if is_wick_rejection:
+        return True, "HB-11: Mum kapanışı reddedildi (Liquidity Sweep / Wick Rejection), sahte kırılım (Fakeout) riski!"
 
     return False, ""
 
@@ -1298,6 +1306,7 @@ def build_trend_scores(
     sma200_1d=None,
     rsi_1h=None,
     volume_ratio=None,
+    is_wick_rejection=False,
 ):
     """Trend stratejileri (BIST 2, KRİPTO 2) için skor paketi."""
     if adx_center is None:
@@ -1467,6 +1476,7 @@ def build_breakout_scores(
     volume_ratio=None,
     rsi_prev=None,
     has_engulfing=None,
+    is_wick_rejection=False,
 ):
     """Kırılım/Squeeze stratejileri (BIST 3/5, KRİPTO 3) için skor paketi."""
     is_gap = (dg_gap_pct >= config.GAP_THRESHOLD_PCT) if dg_gap_pct else False
@@ -1490,6 +1500,10 @@ def build_breakout_scores(
         strategy_type=strategy_type,
         is_long=is_long
     )
+
+    # Kripto Fakeout (Wick Rejection) kontrolü
+    if is_wick_rejection:
+        conflict_penalty -= 100.0
     
     # Overbought/Oversold breakout penalty
     if rsi is not None and not _is_nan(rsi):
@@ -1563,6 +1577,7 @@ def build_short_scores(
     sma200_1d=None,
     rsi_1h=None,
     volume_ratio=None,
+    is_wick_rejection=False,
 ):
     """SHORT stratejileri (SHORT 1-4, Bear Hunter) için skor paketi."""
     if adx_center is None:
@@ -1591,6 +1606,10 @@ def build_short_scores(
         strategy_type=strategy_type,
         is_long=is_long
     )
+
+    # Kripto Fakeout (Wick Rejection) kontrolü
+    if is_wick_rejection:
+        conflict_penalty -= 100.0
 
     vol_ratio_calc = volume_ratio
     if vol_ratio_calc is None and volume is not None and vol_sma and vol_sma > 0:

@@ -58,7 +58,7 @@ def _get_cache_key(tickers, args, kwargs):
     
     # Generate a safe, human-readable prefix for the cache file
     safe_prefix = "".join([c if c.isalnum() else "_" for c in tickers_str[:30]])
-    return f"{safe_prefix}_{md5_hash}.pkl"
+    return f"{safe_prefix}_{md5_hash}.parquet"
 
 def _should_bypass_cache():
     """
@@ -90,8 +90,7 @@ def cached_download(tickers, *args, **kwargs):
     # Try loading from cache
     if os.path.exists(cache_path):
         try:
-            with open(cache_path, "rb") as f:
-                df = pickle.load(f)
+            df = pd.read_parquet(cache_path, engine='fastparquet')
             if isinstance(df, pd.DataFrame) and not df.empty:
                 logger.info(f"[yf_cache] Loaded cached data for {tickers} from {cache_file}")
                 return df
@@ -110,8 +109,7 @@ def cached_download(tickers, *args, **kwargs):
     # Cache the result if it is valid and non-empty
     if isinstance(df, pd.DataFrame) and not df.empty:
         try:
-            with open(cache_path, "wb") as f:
-                pickle.dump(df, f, protocol=pickle.HIGHEST_PROTOCOL)
+            df.to_parquet(cache_path, engine='fastparquet', compression='snappy')
             logger.info(f"[yf_cache] Cached data saved to {cache_file}")
         except Exception as e:
             logger.warning(f"[yf_cache] Failed to save cache for {tickers}: {e}")

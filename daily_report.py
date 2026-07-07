@@ -81,8 +81,9 @@ def convert_csv_to_excel(csv_file, excel_file):
             try:
                 if len(str(cell.value)) > max_length:
                     max_length = len(str(cell.value))
-            except:
-                pass
+            except Exception as e:
+                import logging
+                logging.error(f"Beklenmeyen hata: {e}")
         ws.column_dimensions[column].width = min(max_length + 2, 50)
         
     wb.save(excel_file)

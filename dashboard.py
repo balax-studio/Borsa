@@ -37,8 +37,9 @@ if not DASHBOARD_PASSWORD:
     try:
         with open(LOG_FILE, "a", encoding="utf-8") as lf:
             lf.write(f"[DASHBOARD] Otomatik Guvenli Sifre Uretildi: {DASHBOARD_PASSWORD}\n")
-    except:
-        pass
+    except Exception as e:
+        import logging
+        logging.error(f"Beklenmeyen hata: {e}")
 
 # Uptime hesabı için başlangıç zamanı
 START_TIME = time.time()
@@ -115,8 +116,9 @@ def _read_penalty_box():
                             'sl_count': consec,
                             'until': cooldown if cooldown else 'N/A'
                         })
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.error(f"Beklenmeyen hata: {e}")
     if not res and os.path.exists(legacy_path):
         try:
             with open(legacy_path, 'r', encoding='utf-8') as f:
@@ -129,8 +131,9 @@ def _read_penalty_box():
                             'sl_count': sl_count,
                             'until': v.get('penalty_until', 'N/A')
                         })
-        except Exception:
-            pass
+        except Exception as e:
+            import logging
+            logging.error(f"Beklenmeyen hata: {e}")
     return res[:10]
 
 def _read_scorecard():
@@ -259,8 +262,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     free = int(lines[1].split()[1]) // 1024
                     used = total - free
                     ram_info = f"{used}/{total}MB"
-            except Exception:
-                pass
+            except Exception as e:
+                import logging
+                logging.error(f"Beklenmeyen hata: {e}")
 
             response_data = {
                 "status": {
@@ -435,8 +439,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     if tmp_path and os.path.exists(tmp_path):
                         try:
                             os.remove(tmp_path)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            import logging
+                            logging.error(f"Beklenmeyen hata: {e}")
                     with open(active_path, 'w', encoding='utf-8') as f:
                         json.dump(state, f, indent=2, ensure_ascii=False)
                 
@@ -480,8 +485,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     if tmp_path and os.path.exists(tmp_path):
                         try:
                             os.remove(tmp_path)
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            import logging
+                            logging.error(f"Beklenmeyen hata: {e}")
                     with open(cb_path, 'w', encoding='utf-8') as f:
                         json.dump(default_cb_state, f, indent=2, ensure_ascii=False)
                 

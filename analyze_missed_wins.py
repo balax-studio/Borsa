@@ -28,7 +28,8 @@ def run_analysis():
             all_data[symbol] = df
             time.sleep(0.1)
         except Exception as e:
-            pass
+            import logging
+            logging.error(f"Beklenmeyen hata: {e}")
 
     try:
         btc_ohlcv = exchange.fetch_ohlcv('BTC/USDT', '15m', limit=LIMIT)
