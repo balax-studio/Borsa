@@ -23,6 +23,7 @@ from .smc import (
     detect_premium_rejection,
     detect_bearish_divergence,
     detect_bullish_divergence,
+    detect_adx_divergence,
 )
 from .chart_patterns import (
     detect_squeeze,
@@ -56,6 +57,8 @@ __all__ = [
     "detect_premium_rejection",
     "detect_bearish_divergence",
     "detect_bullish_divergence",
+    "detect_adx_divergence",
+
     "detect_squeeze",
     "detect_obv_accumulation",
     "detect_obv_accumulation_bist",
