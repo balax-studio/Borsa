@@ -322,6 +322,10 @@ def detect_bearish_divergence(df_4h, neighbors=3):
         return False, None, None, None, None
 
     idx1, idx2 = swing_points[-2], swing_points[-1]
+    
+    if n - idx2 > 15:
+        return False, None, None, None, None
+        
     price_1 = float(df_4h.iloc[idx1]['high'])
     price_2 = float(df_4h.iloc[idx2]['high'])
     rsi_1 = float(df_4h.iloc[idx1][rsi_col])
@@ -391,6 +395,10 @@ def detect_bullish_divergence(df_4h, neighbors=3):
         return False, None, None, None, None
 
     idx1, idx2 = swing_points[-2], swing_points[-1]
+    
+    if n - idx2 > 15:
+        return False, None, None, None, None
+        
     price_1 = float(df_4h.iloc[idx1]['low'])
     price_2 = float(df_4h.iloc[idx2]['low'])
     rsi_1 = float(df_4h.iloc[idx1][rsi_col])
@@ -467,6 +475,9 @@ def detect_adx_divergence(df, is_long=True, neighbors=3):
 
     idx1, idx2 = swing_points[-2], swing_points[-1]
     
+    if n - idx2 > 15:
+        return False
+        
     if is_long:
         price_1 = float(df_temp.iloc[idx1]['low'])
         price_2 = float(df_temp.iloc[idx2]['low'])

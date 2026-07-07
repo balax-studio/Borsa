@@ -892,8 +892,13 @@ def check_btc_flash_crash():
             last_open = df['open'].iloc[-1]
             prev_close = df['close'].iloc[-2]
             
-            candle_pct = abs((last_close - last_open) / last_open) * 100
-            drop_pct = abs((last_close - prev_close) / prev_close) * 100
+            candle_pct = 0.0
+            if last_open > 0:
+                candle_pct = abs((last_close - last_open) / last_open) * 100
+                
+            drop_pct = 0.0
+            if prev_close > 0:
+                drop_pct = abs((last_close - prev_close) / prev_close) * 100
             
             if candle_pct > 2.5 or drop_pct > 3.5:
                 res = True
