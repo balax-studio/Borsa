@@ -23,6 +23,7 @@ from indicators.smc import (
     detect_supply_zones, is_price_in_supply_zone,
     detect_demand_zones, is_price_in_demand_zone
 )
+from strategies.crypto.filters import add_fakeout_features
 from strategies.helpers import (
     _extract_raw_indicators, _apply_volume_sma_guard, _get_consecutive_sl,
 )
@@ -41,6 +42,8 @@ class SniperOteLongStrategy(BaseStrategy):
         current_price = ctx["current_price"]
         df_4h = ctx["df_4h"]
         btc_sniper_bias = ctx["btc_sniper_bias"]
+        
+        df_4h = add_fakeout_features(df_4h)
 
         if btc_sniper_bias not in (1, 0):
             return signals
@@ -130,7 +133,13 @@ class SniperOteLongStrategy(BaseStrategy):
                     f"🎣 OTE Bölgesi (Gövde): {ote_bottom:.4f} - {ote_top:.4f}\n"
                     f"📊 Fonlama: %{funding_rate:.4f} (Negatif Yakıt)\n"
                     f"🛡️ İşlem %4 kâra geçince Break-Even uygula."
-                ) + _conv_c4l.to_reason_suffix()
+                ) + _conv_c4l.to_reason_suffix(),
+                "ml_features": {
+                    "OFI_Proxy": df_4h['OFI_Proxy'].iloc[-1] if 'OFI_Proxy' in df_4h else 0,
+                    "Vol_Z_Score": df_4h['Vol_Z_Score'].iloc[-1] if 'Vol_Z_Score' in df_4h else 0,
+                    "Upper_Wick_Ratio": df_4h['Upper_Wick_Ratio'].iloc[-1] if 'Upper_Wick_Ratio' in df_4h else 0,
+                    "Lower_Wick_Ratio": df_4h['Lower_Wick_Ratio'].iloc[-1] if 'Lower_Wick_Ratio' in df_4h else 0
+                }
             })
         return signals
 
@@ -164,6 +173,7 @@ class Sniper1hLongStrategy(BaseStrategy):
 
         # We need to replicate the preprocessing from _check_crypto_sniper_1h
         df_1h_sniper = df_1h_sniper.copy()
+        df_1h_sniper = add_fakeout_features(df_1h_sniper)
         
         # Avoid duplicate indicator calculations if already present
         if not any(c in df_1h_sniper.columns for c in ['KCU_20_1.5', 'KCL_20_1.5']):
@@ -346,6 +356,12 @@ class Sniper1hLongStrategy(BaseStrategy):
                     f"Kanunlar: Squeeze: {_scores_sn_long['bbw_squeeze']:.1f}, %B: {_scores_sn_long['percent_b']:.1f}, FVG/SFP: {_scores_sn_long['fvg_sfp']:.1f}\n"
                     f"Willy EMA Score: {_scores_sn_long.get('willy_ema_penalty', 0.0):.1f}\n"
                     f"SL: Bollinger Alt Band Altı ({sl_long:.2f})"
-                ) + _conv_sn_long.to_reason_suffix()
+                ) + _conv_sn_long.to_reason_suffix(),
+                "ml_features": {
+                    "OFI_Proxy": df_1h_sniper['OFI_Proxy'].iloc[-1] if 'OFI_Proxy' in df_1h_sniper else 0,
+                    "Vol_Z_Score": df_1h_sniper['Vol_Z_Score'].iloc[-1] if 'Vol_Z_Score' in df_1h_sniper else 0,
+                    "Upper_Wick_Ratio": df_1h_sniper['Upper_Wick_Ratio'].iloc[-1] if 'Upper_Wick_Ratio' in df_1h_sniper else 0,
+                    "Lower_Wick_Ratio": df_1h_sniper['Lower_Wick_Ratio'].iloc[-1] if 'Lower_Wick_Ratio' in df_1h_sniper else 0
+                }
             })
         return signals
