@@ -147,7 +147,7 @@ async def scan_all_markets():
             asyncio.to_thread(_get_btc_htf_bias)
         )
 
-        semaphore = asyncio.Semaphore(25)
+        semaphore = asyncio.Semaphore(50)
 
         async def fetch_and_analyze_crypto(sym):
             result = []

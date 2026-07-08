@@ -51,16 +51,34 @@ def get_uptime():
     minutes, seconds = divmod(remain, 60)
     return f"{days}g {hours}s {minutes}d {seconds}sn"
 
-def read_last_logs(num_lines=50):
-    if not os.path.exists(LOG_FILE):
-        return ["Log dosyası henüz oluşturulmadı. Bot başladığında loglar burada görünecektir."]
+def _tail_file(filepath, num_lines=100, chunk_size=4096):
+    """Verimli şekilde dosyanın sonundan n satır okur (RAM dostu)."""
+    if not os.path.exists(filepath):
+        return []
     try:
-        from collections import deque
-        with open(LOG_FILE, "r", encoding="utf-8", errors="ignore") as f:
-            lines = deque(f, maxlen=num_lines)
-            return [line.strip() for line in lines]
+        with open(filepath, 'rb') as f:
+            f.seek(0, 2)
+            pos = f.tell()
+            data = bytearray()
+            while pos > 0:
+                to_read = min(chunk_size, pos)
+                pos -= to_read
+                f.seek(pos)
+                data = bytearray(f.read(to_read)) + data
+                if data.count(b'\n') > num_lines:
+                    break
+            lines_str = data.decode('utf-8', errors='ignore').split('\n')
+            return [l for l in lines_str if l][-num_lines:]
     except Exception as e:
-        return [f"Log okuma hatası: {e}"]
+        import logging
+        logging.error(f"Tail read error: {e}")
+        return []
+
+def read_last_logs(num_lines=50):
+    lines = _tail_file(LOG_FILE, num_lines)
+    if not lines:
+        return ["Log dosyası henüz oluşturulmadı. Bot başladığında loglar burada görünecektir."]
+    return [line.strip() for line in lines]
 
 def read_trades():
     if not os.path.exists(TRACKER_FILE):
@@ -153,12 +171,10 @@ def _read_scorecard():
 
 def _parse_scan_stats():
     """Bot.log'dan son tarama bilgilerini çıkar — E2 dostu: sadece son 100 satır."""
-    if not os.path.exists(LOG_FILE):
+    lines = _tail_file(LOG_FILE, 100)
+    if not lines:
         return {}
     try:
-        from collections import deque
-        with open(LOG_FILE, 'r', encoding='utf-8', errors='ignore') as f:
-            lines = list(deque(f, maxlen=100))
         total_signals = 0
         last_scan_duration = 'N/A'
         dg_rejects = 0
@@ -196,12 +212,10 @@ def _parse_scan_stats():
 
 def _parse_dataguard_stats():
     """Bot.log'dan DataGuard istatistiklerini çıkar."""
-    if not os.path.exists(LOG_FILE):
+    lines = _tail_file(LOG_FILE, 200)
+    if not lines:
         return {}
     try:
-        from collections import deque
-        with open(LOG_FILE, 'r', encoding='utf-8', errors='ignore') as f:
-            lines = list(deque(f, maxlen=200))
         dg_counts = {'DG-01': 0, 'DG-02': 0, 'DG-04': 0, 'DG-06': 0}
         for line in lines:
             for dg in dg_counts:
@@ -589,37 +603,38 @@ class DashboardHandler(BaseHTTPRequestHandler):
         .section{margin-bottom:48px;border-top:1px solid #2F3437;padding-top:24px}
         .section-hdr{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:24px;flex-wrap:wrap;gap:12px;}
         h3{font-family:'Geist Mono',monospace;font-size:11px;color:#787774;text-transform:uppercase;letter-spacing:0.05em;font-weight:500}
-        .kv{display:flex;flex-wrap:wrap;gap:24px;margin-bottom:16px;}
-        .kv .k{color:#787774;font-family:'Geist Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;display:block}
-        .kv .v{color:#EAEAEA;font-size:15px;font-weight:400}
+        .kv{display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:16px;margin-bottom:24px;}
+        .kv .k{color:#787774;font-family:'Geist Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;display:block}
+        .kv .v{color:#EAEAEA;font-size:16px;font-weight:500}
         .table-responsive{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;}
         table{width:100%;border-collapse:collapse;font-size:13px;min-width:700px;}
         th{text-align:left;color:#787774;font-family:'Geist Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.05em;font-weight:400;padding:8px 0;border-bottom:1px solid #2F3437}
         td{padding:12px 0;border-bottom:1px solid #2F3437;color:#EAEAEA}
-        .badge{display:inline-block;padding:2px 8px;border-radius:9999px;font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:0.05em}
-        .b-strong{background:#EDF3EC;color:#346538}
-        .b-medium{background:#FBF3DB;color:#956400}
-        .b-watch{background:#EAEAEA;color:#111111}
-        .b-reject{background:#FDEBEC;color:#9F2F2D}
+        .badge{display:inline-block;padding:2px 8px;border-radius:2px;font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:0.05em;border:1px solid currentColor}
+        .b-strong{background:transparent;color:#4CAF50}
+        .b-medium{background:transparent;color:#FFC107}
+        .b-watch{background:transparent;color:#EAEAEA}
+        .b-reject{background:transparent;color:#F44336}
         .bar-container{display:flex;gap:2px;margin-top:8px;height:4px;width:100%}
-        .bar{height:100%;border-radius:2px}
-        .log-box{font-family:'Geist Mono',monospace;font-size:11px;line-height:1.8;max-height:300px;overflow-y:auto;color:#EAEAEA;padding:12px;background:#181818;border-radius:4px;border:1px solid #2F3437;}
+        .bar{height:100%;border-radius:0}
+        .log-box{font-family:'Geist Mono',monospace;font-size:11px;line-height:1.8;max-height:400px;overflow-y:auto;color:#EAEAEA;padding:16px;background:#0A0A0A;border:1px solid #2F3437;}
         .log-box .info{color:#787774}
-        .log-box .warn{color:#956400}
-        .log-box .error{color:#9F2F2D}
-        .log-box .conviction{color:#1F6C9F}
+        .log-box .warn{color:#FFC107}
+        .log-box .error{color:#F44336}
+        .log-box .conviction{color:#03A9F4}
         .empty{color:#787774;font-style:italic}
-        .metric-block{display:flex;flex-direction:column;min-width:100px;}
-        .close-btn{background:#9F2F2D;color:#FDEBEC;border:none;padding:4px 8px;border-radius:4px;font-family:'Geist Mono',monospace;font-size:10px;cursor:pointer;transition:transform 0.2s;white-space:nowrap;}
-        .close-btn:hover{transform:scale(0.95)}
+        .metric-block{display:flex;flex-direction:column;border:1px solid #2F3437;padding:16px;background:#111;}
+        .close-btn{background:transparent;color:#F44336;border:1px solid #F44336;padding:4px 8px;border-radius:0;font-family:'Geist Mono',monospace;font-size:10px;cursor:pointer;transition:background 0.2s, color 0.2s;white-space:nowrap;}
+        .close-btn:hover{background:#F44336;color:#111;}
+        .btn-secondary{background:transparent;color:#EAEAEA;border:1px solid #2F3437;padding:4px 8px;border-radius:0;font-family:'Geist Mono',monospace;font-size:10px;cursor:pointer;white-space:nowrap;}
+        .btn-secondary:hover{background:#EAEAEA;color:#111;}
         .fade-in{animation:fadeIn 0.6s cubic-bezier(0.16,1,0.3,1) both}
         @keyframes fadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
         @media (max-width:768px){
             body{padding:16px;}
             .hdr{flex-direction:column;align-items:flex-start;gap:12px;}
-            .kv{gap:16px; justify-content:space-between;}
-            .metric-block{width:45%;}
-            .section-hdr{flex-direction:column;gap:12px;}
+            .kv{grid-template-columns:1fr 1fr;gap:12px;}
+            .section-hdr{flex-direction:column;gap:12px;align-items:flex-start;}
         }
     </style>
 </head>
@@ -638,8 +653,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         <div class="section-hdr">
             <h3>System Intelligence</h3>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="close-btn" onclick="resetPenalty()" style="background:#222; border:1px solid #333; color:#EAEAEA; font-size:10px;">CEZA KUTUSUNU SIFIRLA</button>
-                <button class="close-btn" onclick="resetCircuitBreaker()" style="background:#222; border:1px solid #333; color:#EAEAEA; font-size:10px;">SESSİZ MODLARI SIFIRLA</button>
+                <button class="btn-secondary" onclick="resetPenalty()">RESET PENALTY BOX</button>
+                <button class="btn-secondary" onclick="resetCircuitBreaker()">RESET CIRCUIT BREAKER</button>
             </div>
         </div>
         <div class="kv">
@@ -650,7 +665,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
             <div class="metric-block"><span class="k">Duration</span><span class="v" id="sc-dur">—</span></div>
             <div class="metric-block"><span class="k">Signals</span><span class="v" id="sc-sig">—</span></div>
             <div class="metric-block"><span class="k">Win Rate</span><span class="v" id="s-winrate">—</span></div>
-            <div class="metric-block" style="width:100%;"><span class="k">Circuit Breaker</span><span class="v" id="s-cb" style="font-family:'Geist Mono',monospace;font-size:12px">—</span></div>
+            <div class="metric-block" style="grid-column: 1 / -1;"><span class="k">Circuit Breaker</span><span class="v" id="s-cb" style="font-family:'Geist Mono',monospace;font-size:12px">—</span></div>
         </div>
         <div id="penalty-box-container" style="margin-top:24px; display:none;">
             <span class="k" style="margin-bottom:8px; color:#787774; font-family:'Geist Mono',monospace; font-size:10px; text-transform:uppercase;">Ceza Kutusundaki Varlıklar</span>
@@ -663,7 +678,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
     <div class="section fade-in" style="animation-delay: 160ms">
         <div class="section-hdr">
             <h3>Active Deployments (<span id="trade-count">0</span>)</h3>
-            <button class="close-btn" onclick="closeAllTrades()" style="padding:6px 12px; font-size:11px;">TÜM POZİSYONLARI KAPAT</button>
+            <button class="close-btn" onclick="closeAllTrades()">CLOSE ALL TRADES</button>
         </div>
         <div class="table-responsive">
             <table id="trade-table">
@@ -794,7 +809,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     const stColor=status==='ACTIVE'?'#EAEAEA':'#787774';
                     let actionHtml = '';
                     if(status === 'ACTIVE') {
-                        actionHtml = `<button class="close-btn" onclick="closeTrade('${t.ticker}')">KAPAT</button>`;
+                        actionHtml = `<button class="close-btn" onclick="closeTrade('${t.ticker}')">CLOSE</button>`;
                     }
                     return `<tr>
                         <td style="font-family:'Geist Mono',monospace">${esc(t.ticker)}</td>
@@ -859,10 +874,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     document.getElementById('conv-dist').innerHTML=`
                         <div style="font-family:'Geist Mono',monospace;font-size:10px;color:#787774;margin-bottom:4px;letter-spacing:0.05em">SIGNAL QUALITY DISTRIBUTION</div>
                         <div class="bar-container">
-                            <div class="bar" style="width:${pS}%;background:#EDF3EC"></div>
-                            <div class="bar" style="width:${pM}%;background:#FBF3DB"></div>
+                            <div class="bar" style="width:${pS}%;background:#4CAF50"></div>
+                            <div class="bar" style="width:${pM}%;background:#FFC107"></div>
                             <div class="bar" style="width:${pW}%;background:#EAEAEA"></div>
-                            <div class="bar" style="width:${pR}%;background:#FDEBEC"></div>
+                            <div class="bar" style="width:${pR}%;background:#F44336"></div>
                         </div>
                     `;
                 } else {

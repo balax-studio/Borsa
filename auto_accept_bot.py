@@ -14,7 +14,7 @@ except ImportError:
 
 # Ayarlar
 WINDOW_TITLE_SUBSTRING = "Borsa"  # VS Code pencere başlığında geçen kelime
-CHECK_INTERVAL = 1.0  # Saniyede bir kontrol et.
+CHECK_INTERVAL = 0.2  # Butona çok daha hızlı tepki vermesi için 1.0'dan 0.2'ye (saniyede 5 kez) düşürüldü.
 
 # VS Code penceresine göre butonların yaklaşık koordinat oranları (Sağ ve alttan uzaklıkları)
 TARGET_BUTTONS = [
@@ -69,9 +69,11 @@ def find_and_click_blue_button(hwnd):
             bmpstr = saveBitMap.GetBitmapBits(True)
             row_bytes = w * 4
             
-            for y in range(start_y, end_y + 1):
+            # Step (atlama) mantığı: Butonlar en az 20-30 px genişliğinde olduğu için, 
+            # 1'er 1'er değil 3'er 3'er atlayarak aramak taranan piksel sayısını %90 azaltır ve CPU'yu inanılmaz rahatlatır.
+            for y in range(start_y, end_y + 1, 3):
                 y_offset = y * row_bytes
-                for x in range(start_x, end_x + 1):
+                for x in range(start_x, end_x + 1, 3):
                     idx = y_offset + (x * 4)
                     if idx + 2 >= len(bmpstr):
                         continue

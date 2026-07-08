@@ -15,6 +15,7 @@ import warnings
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 from typing import NamedTuple, Any, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # 99 yapılmıştır
 # yfinance yedek veri çekimlerinde config.DATA_PERIOD_1D gibi tanımlara erişebilmek için
@@ -393,13 +394,14 @@ def get_bist_data_batch(symbols, batch_size=25):
     """
     Toplu yfinance indirme ile BIST verisi çeker.
     200 ayrı HTTP çağrısı → ~8 toplu çağrıya düşürür.
-    E2-micro RAM koruması için küçük batch'ler (25 ticker) kullanır.
+    E2-micro RAM koruması için ThreadPoolExecutor ile paralel (limitli max_workers) çalışır.
     """
     results = {}
-    for i in range(0, len(symbols), batch_size):
-        batch = symbols[i:i + batch_size]
+
+    def fetch_batch(batch_idx, batch):
+        batch_results = {}
         tickers_str = " ".join(batch)
-        logging.info(f"[get_bist_data_batch] Batch {i//batch_size + 1}: {len(batch)} ticker indiriliyor...")
+        logging.info(f"[get_bist_data_batch] Batch {batch_idx}: {len(batch)} ticker indiriliyor...")
 
         try:
             # 99 yapılmıştır
@@ -409,11 +411,11 @@ def get_bist_data_batch(symbols, batch_size=25):
             raw_1h = yf.download(tickers_str, period=config.DATA_PERIOD_1H, interval="1h",
                                   group_by="ticker", threads=True, progress=False)
         except Exception as e:
-            logging.warning(f"[get_bist_data_batch] Batch download hata: {e}, tekli fallback...")
+            logging.warning(f"[get_bist_data_batch] Batch {batch_idx} download hata: {e}, tekli fallback...")
             for sym in batch:
-                results[sym] = get_bist_data(sym)
+                batch_results[sym] = get_bist_data(sym)
                 _time.sleep(API_SLEEP_BIST)
-            continue
+            return batch_results
 
         for sym in batch:
             try:
@@ -425,7 +427,7 @@ def get_bist_data_batch(symbols, batch_size=25):
                     # MultiIndex → ticker bazında ayır
                     level_values = raw_1d.columns.get_level_values(0).unique()
                     if sym not in level_values:
-                        results[sym] = (None, None, None)
+                        batch_results[sym] = (None, None, None)
                         continue
                     df_1d = raw_1d[sym].copy()
                     df_1h = raw_1h[sym].copy() if sym in raw_1h.columns.get_level_values(0).unique() else pd.DataFrame()
@@ -434,7 +436,7 @@ def get_bist_data_batch(symbols, batch_size=25):
                 df_1h = clean_yf_df(df_1h) if not df_1h.empty else pd.DataFrame()
 
                 if df_1d.empty or df_1h.empty:
-                    results[sym] = (None, None, None)
+                    batch_results[sym] = (None, None, None)
                     continue
 
                 df_4h = df_1h.resample('4h').agg({
@@ -446,18 +448,30 @@ def get_bist_data_batch(symbols, batch_size=25):
                 df_1d = guard_dataframe(df_1d, sym, '1d')
                 df_4h = guard_dataframe(df_4h, sym, '4h')
                 if df_1d is None:
-                    results[sym] = (None, None, None)
+                    batch_results[sym] = (None, None, None)
                     continue
 
-                results[sym] = (df_1d, df_4h, df_1h)
+                batch_results[sym] = (df_1d, df_4h, df_1h)
             except Exception as e:
                 logging.warning(f"[get_bist_data_batch] {sym} parse: {e}")
-                results[sym] = (None, None, None)
+                batch_results[sym] = (None, None, None)
 
         # Batch arası RAM temizliği (E2-micro koruma)
-        del raw_1d, raw_1h
+        if 'raw_1d' in locals() and 'raw_1h' in locals():
+            del raw_1d, raw_1h
         gc.collect()
         _time.sleep(0.5)  # Batch'ler arası Yahoo throttle koruması
+        return batch_results
+
+    batches = [symbols[i:i + batch_size] for i in range(0, len(symbols), batch_size)]
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        future_to_batch = {executor.submit(fetch_batch, idx+1, b): b for idx, b in enumerate(batches)}
+        for future in as_completed(future_to_batch):
+            try:
+                batch_res = future.result()
+                results.update(batch_res)
+            except Exception as e:
+                logging.error(f"[get_bist_data_batch] Paralel işlem hatası: {e}")
 
     return results
 
