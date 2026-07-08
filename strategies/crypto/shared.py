@@ -34,6 +34,7 @@ from ..helpers import (
     _get_consecutive_sl, _has_absolute_hourly_volume, _get_darth_maul_ratio,
     _is_funding_safe_for_short,
 )
+from .ml_filter import evaluate_ml_fakeout
 
 
 def apply_5x_sl_cap(sl: float, current_price: float, ctx: dict = None) -> float:
@@ -143,9 +144,22 @@ def _filter_crypto_signals(signals, symbol, current_price, last_4h, ctx):
     if pd.isna(cmf_4h):
         cmf_4h = 0.0
 
-    filtered_signals = [
-        sig for sig in signals if _is_crypto_signal_valid(sig, rel_vol_4h, ema_diff_pct, cmf_4h)
-    ]
+    filtered_signals = []
+    for sig in signals:
+        if not _is_crypto_signal_valid(sig, rel_vol_4h, ema_diff_pct, cmf_4h):
+            continue
+            
+        ml_features = sig.get("ml_features")
+        if ml_features:
+            prob = evaluate_ml_fakeout(ml_features)
+            sig["ml_fakeout_prob"] = prob
+            if prob >= 0.70:
+                print(f"[ML FILTER] {symbol} {sig.get('signal')} sinyali engellendi! (Fakeout Riski: %{prob*100:.1f})")
+                continue
+            else:
+                sig["reason"] += f"\n🤖 ML Fakeout Riski: %{prob*100:.1f} (GÜVENLİ)"
+                
+        filtered_signals.append(sig)
 
     def _build_confluence(sig_list, direction_name, direction_signal):
         if len(sig_list) >= 3:
