@@ -133,6 +133,26 @@ def _get_darth_maul_ratio(candle):
     return body / total_range
 
 
+def _get_upper_wick_ratio(candle):
+    """Gövdeye kıyasla üst fitilin oranını hesaplar.
+    Dönen değer > 2.0 ise üst fitil gövdenin 2 katından uzundur."""
+    body = abs(candle['close'] - candle['open'])
+    upper_wick = candle['high'] - max(candle['open'], candle['close'])
+    if body <= 0:
+        return 999.0 if upper_wick > 0 else 0.0
+    return upper_wick / body
+
+
+def _get_lower_wick_ratio(candle):
+    """Gövdeye kıyasla alt fitilin oranını hesaplar.
+    Dönen değer > 2.0 ise alt fitil gövdenin 2 katından uzundur."""
+    body = abs(candle['close'] - candle['open'])
+    lower_wick = min(candle['open'], candle['close']) - candle['low']
+    if body <= 0:
+        return 999.0 if lower_wick > 0 else 0.0
+    return lower_wick / body
+
+
 def _is_meaningful_volume(volume, vol_sma_20, price, market="KRIPTO"):
     """RED-07: Hacim gerçekten anlamlı mı, yoksa ölü piyasada gürültü mü?"""
     if pd.isna(vol_sma_20) or vol_sma_20 <= 0:

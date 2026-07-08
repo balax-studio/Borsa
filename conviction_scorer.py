@@ -733,6 +733,8 @@ def check_hard_blocks(
     is_long: bool = False,
     is_wick_rejection: bool = False,
     is_crypto: bool = False,
+    is_overextended: bool = False,
+    is_divergence: bool = False,
 ) -> tuple:
     """
     Asla esnetilemeyen güvenlik kontrolleri. (Sadece NaN, Karantina, Devre Kesici)
@@ -777,9 +779,14 @@ def check_hard_blocks(
         except Exception as e:
             logger.warning(f"[check_hard_blocks] HB-12 check failed: {e}")
 
-    # HB-11 (Fakeout) is handled in calculate_conviction as a WATCH override
-    # if is_wick_rejection:
-    #     return True, "HB-11: Mum kapanışı reddedildi (Liquidity Sweep / Wick Rejection), sahte kırılım (Fakeout) riski!"
+    if is_overextended:
+        return True, "HB-OVEREXTENDED: Fiyat aşırı uzamış, Fakeout veya Liquidity Sweep riski yüksek!"
+        
+    if is_divergence:
+        return True, "HB-DIVERGENCE: RSI/Fiyat uyuşmazlığı tespit edildi, trend dönüş riski var!"
+
+    if is_wick_rejection:
+        return True, "HB-SWEEP: Mum kapanışı reddedildi (Liquidity Sweep / Wick Rejection), sahte kırılım (Fakeout) riski!"
 
     return False, ""
 
@@ -1090,6 +1097,40 @@ def calculate_conviction(
                     block_reason = "HB-12: BTC Flash Volatility Guard"
             except Exception as e:
                 logger.error(f"[Conviction] BTC Flash Crash kontrol edilemedi: {e}")
+                
+        if not hard_blocked:
+            is_long_strat = scores.get("is_long_strategy", True)
+            last_4h = ctx.get("last_4h")
+            df_4h = ctx.get("df_4h")
+            
+            is_fakeout_ctx = ctx.get("is_fakeout", False)
+            is_wick_ctx = ctx.get("is_wick_rejection", False)
+            is_overextended_ctx = ctx.get("is_overextended", False)
+            is_divergence_ctx = ctx.get("is_divergence", False)
+            
+            if last_4h is not None and df_4h is not None and len(df_4h) >= 20:
+                rsi_val = last_4h.get('RSI_14', 50)
+                from indicators import detect_bearish_divergence, detect_bullish_divergence
+                from strategies.helpers import _get_upper_wick_ratio, _get_lower_wick_ratio
+                
+                if is_long_strat:
+                    if pd.notna(rsi_val) and rsi_val > 75: is_overextended_ctx = True
+                    if detect_bearish_divergence(df_4h): is_divergence_ctx = True
+                    if _get_upper_wick_ratio(last_4h) > 0.5: is_wick_ctx = True
+                else:
+                    if pd.notna(rsi_val) and rsi_val < 25: is_overextended_ctx = True
+                    if detect_bullish_divergence(df_4h): is_divergence_ctx = True
+                    if _get_lower_wick_ratio(last_4h) > 0.5: is_wick_ctx = True
+            
+            if is_overextended_ctx:
+                hard_blocked = True
+                block_reason = "HB-OVEREXTENDED: Fiyat aşırı uzamış, Fakeout veya Liquidity Sweep riski yüksek!"
+            elif is_divergence_ctx:
+                hard_blocked = True
+                block_reason = "HB-DIVERGENCE: RSI/Fiyat uyuşmazlığı tespit edildi, trend dönüş riski var!"
+            elif is_fakeout_ctx or is_wick_ctx:
+                hard_blocked = True
+                block_reason = "HB-SWEEP: Mum kapanışı reddedildi (Liquidity Sweep / Wick Rejection), sahte kırılım (Fakeout) riski!"
 
     result.hard_blocked = hard_blocked
     result.hard_block_reason = block_reason

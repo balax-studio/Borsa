@@ -118,7 +118,7 @@ def _is_crypto_signal_valid(sig, rel_vol_4h, ema_diff_pct, cmf_4h):
     direction = "LONG" if sig.get('signal') == "AL" else "SHORT"
     if score < 50:
         return False
-    if rel_vol_4h < 0.7:
+    if rel_vol_4h < 1.2:
         return False
     if ema_diff_pct > 8.0:
         return False
