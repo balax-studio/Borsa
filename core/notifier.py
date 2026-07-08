@@ -329,11 +329,11 @@ class NotificationService:
         dir_text = "LONG" if signal_dir == "AL" else "SHORT"
         
         headers = {
-            "BIST": f"📈 [BIST 100 {dir_text} SİNYALİ]",
-            "EMTİA": f"⛏️ [EMTİA {dir_text} SİNYALİ]",
-            "AYI_AVCISI": "🐻 [AYI AVCISI SHORT]"
+            "BIST": f"📈 BIST {dir_text}",
+            "EMTİA": f"⛏️ EMTİA {dir_text}",
+            "AYI_AVCISI": "🐻 AYI AVCISI SHORT"
         }
-        header = headers.get(market, f"🚀 [KRİPTO {dir_text} SİNYALİ]")
+        header = headers.get(market, f"🚀 KRİPTO {dir_text}")
         
         try:
             entry_price = float(trade_data.get('entry_price', 0))
@@ -346,7 +346,7 @@ class NotificationService:
         rr_ratio = trade_data.get('rr_ratio')
         try:
             rr_val = float(rr_ratio) if rr_ratio is not None else 0.0
-            rr_line = f"<b>R:R Oranı:</b> <code>{rr_val:.1f}:1</code>\n" if rr_val > 0 else ""
+            rr_line = f"⚖️ R:R: {rr_val:.1f} | " if rr_val > 0 else ""
         except (ValueError, TypeError):
             rr_line = ""
 
@@ -356,49 +356,26 @@ class NotificationService:
             conv_grade = trade_data.get('conviction_grade', 'N/A')
             conv_pos = trade_data.get('position_size_pct', 100)
             conv_emoji = {"STRONG": "🟢", "MEDIUM": "🟡", "WATCH": "🟠"}.get(conv_grade, "⚪")
-            conv_line = f"{conv_emoji} <b>Conviction:</b> <code>{conv_score:.0f}/100 ({conv_grade})</code> | Poz: %{conv_pos}\n"
-
-        conv_details = trade_data.get('conviction_details')
-        details_str = ""
-        if conv_details and isinstance(conv_details, dict):
-            details_str = "<b>Puanlama Detayları:</b>\n"
-            for k, v in conv_details.items():
-                if v != 0:
-                    sign = "+" if v > 0 else ""
-                    details_str += f" ├ {k}: <code>{sign}{v:.1f} Puan</code>\n"
-            details_str += " └────────────────\n"
+            conv_line = f"{conv_emoji} Skor: {conv_score:.0f} | Poz: %{conv_pos}\n"
 
         ttl_pct = 0.015
         if signal_dir == "AL":
             ttl_ceiling = entry_price * (1 + ttl_pct)
             ttl_floor = entry_price * (1 - ttl_pct)
-            ttl_line = (f"\n⏰ <b>SİNYAL ÖMRÜ (TTL):</b>\n"
-                       f"❗ Fiyat <code>{cls.format_price(ttl_ceiling)}</code> üstüne çıkmışsa → SİNYAL ÖLDÜ, İŞLEME GİRME!\n"
-                       f"❗ Fiyat <code>{cls.format_price(ttl_floor)}</code> altına düşmüşse → SL YAKINLAŞMIŞ, DİKKATLİ OL!")
+            ttl_line = f"\n⏰ TTL: >{cls.format_price(ttl_ceiling)} İPTAL | <{cls.format_price(ttl_floor)} RİSKLİ"
         else:
             ttl_floor = entry_price * (1 - ttl_pct)
             ttl_ceiling = entry_price * (1 + ttl_pct)
-            ttl_line = (f"\n⏰ <b>SİNYAL ÖMRÜ (TTL):</b>\n"
-                       f"❗ Fiyat <code>{cls.format_price(ttl_floor)}</code> altına düşmüşse → SİNYAL ÖLDÜ, İŞLEME GİRME!\n"
-                       f"❗ Fiyat <code>{cls.format_price(ttl_ceiling)}</code> üstüne çıkmışsa → SL YAKINLAŞMIŞ, DİKKATLİ OL!")
+            ttl_line = f"\n⏰ TTL: <{cls.format_price(ttl_floor)} İPTAL | >{cls.format_price(ttl_ceiling)} RİSKLİ"
 
         import html
         escaped_strategy = html.escape(strategy)
         escaped_ticker = html.escape(trade_data.get('ticker', 'Bilinmiyor'))
         escaped_reason = html.escape(trade_data.get('reason', 'Sebep belirtilmemiş.'))
 
-        signal_emoji = "🟢 AL (LONG)" if signal_dir == "AL" else "🔴 SAT (SHORT)"
-
         return (
-            f"<b>{header}</b>\n"
-            f"<b>{escaped_strategy}</b>\n"
-            f"-------------------------------------\n"
-            f"<b>Varlık:</b> <code>{escaped_ticker}</code>\n"
-            f"<b>İşlem Yönü:</b> <code>{signal_emoji}</code>\n"
-            f"<b>Giriş Fiyatı:</b> <code>{cls.format_price(entry_price)}</code>\n"
-            f"<b>Zarar Kes (SL):</b> <code>{cls.format_price(sl_price)}</code>\n"
-            f"<b>Kar Al (TP):</b> <code>Dinamik Takip (Teorik: {cls.format_price(tp_price)})</code>\n"
-            f"{rr_line}{conv_line}{details_str}"
-            f"-------------------------------------\n"
-            f"<b>Sistem Gerekçesi:</b>\n<i>{escaped_reason}</i>\n{ttl_line}"
+            f"<b>{header} | {escaped_ticker}</b>\n"
+            f"🎯 <code>{cls.format_price(entry_price)}</code> | 🛑 <code>{cls.format_price(sl_price)}</code> | 📈 <code>{cls.format_price(tp_price)}</code>\n"
+            f"{rr_line}{conv_line}"
+            f"<i>{escaped_strategy} - {escaped_reason}</i>{ttl_line}"
         )

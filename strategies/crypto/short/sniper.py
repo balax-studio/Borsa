@@ -7,7 +7,7 @@ import config
 from conviction_scorer import (
     calculate_conviction,
     build_short_scores, build_sniper_scores,
-    CONVICTION_STRONG, CONVICTION_MEDIUM,
+    CONVICTION_STRONG, CONVICTION_MEDIUM, CONVICTION_WATCH,
     SNIPER_CRYPTO_WEIGHTS, check_hard_blocks,
 )
 from indicators.smc import (

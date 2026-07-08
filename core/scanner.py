@@ -228,7 +228,7 @@ class ScannerService:
                 chart_path, df_4h = await get_chart_for_signal(trade)
             
             if is_watch:
-                watch_header = '👁️ <b>WATCH LIST</b> — Sadece İzle\n━━━━━━━━━━━━━━━━━━\n'
+                watch_header = '👁️ <b>WATCH LIST</b>\n'
                 if chart_path and os.path.exists(chart_path):
                     try:
                         await self.notifier.send_photo(chart_path, caption=watch_header + msg, is_watch=True)
@@ -250,7 +250,7 @@ class ScannerService:
                             if ai_comment:
                                 import html
                                 escaped_ai_comment = html.escape(ai_comment)
-                                formatted_ai_msg = f"🤖 <b>Yapay Zeka Piyasa Analizi</b>\n━━━━━━━━━━━━━━━━━━\n{escaped_ai_comment}"
+                                formatted_ai_msg = f"🤖 <b>AI Analizi:</b>\n{escaped_ai_comment}"
                                 await self.notifier.send_message(formatted_ai_msg)
                     finally:
                         try:
@@ -265,7 +265,7 @@ class ScannerService:
                         if ai_comment:
                             import html
                             escaped_ai_comment = html.escape(ai_comment)
-                            formatted_ai_msg = f"🤖 <b>Yapay Zeka Piyasa Analizi</b>\n━━━━━━━━━━━━━━━━━━\n{escaped_ai_comment}"
+                            formatted_ai_msg = f"🤖 <b>AI Analizi:</b>\n{escaped_ai_comment}"
                             await self.notifier.send_message(formatted_ai_msg)
                     
                 await self._set_cooldown(ticker, strategy)
@@ -334,21 +334,14 @@ class ScannerService:
             tp_val = float(updated_trade.get("tp") or 0.0)
             msg = (
                 f"🔄 <b>SKOR GÜNCELLEMESİ — {updated_trade.get('ticker')}</b>\n"
-                f"<b>Yön:</b> {'🟢 LONG' if updated_trade.get('signal') == 'AL' else '🔴 SHORT'}\n"
-                f"<b>Strateji:</b> {updated_trade.get('strategy')}\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"<b>Yeni Skor:</b> <code>{new_score:.0f}/100 ({updated_trade.get('conviction_grade')})</code>\n"
-                f"<b>Yeni Pozisyon Büyüklüğü:</b> %{updated_trade.get('position_size_pct')}\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"<b>Giriş Fiyatı:</b> <code>{entry_val:.4f}</code>\n"
-                f"<b>Zarar Kes (SL):</b> <code>{sl_val:.4f}</code>\n"
-                f"<b>Kar Al (TP):</b> <code>Dinamik Takip (Teorik: {tp_val:.4f})</code>\n"
-                f"━━━━━━━━━━━━━━━━━━\n"
-                f"<b>Güncelleme Gerekçesi:</b>\n<i>{decision.get('reason', 'Neden belirtilmedi')}</i>"
+                f"{'🟢 LONG' if updated_trade.get('signal') == 'AL' else '🔴 SHORT'} | <b>{updated_trade.get('strategy')}</b>\n"
+                f"<b>Yeni Skor:</b> <code>{new_score:.0f} ({updated_trade.get('conviction_grade')})</code> | <b>Poz:</b> %{updated_trade.get('position_size_pct')}\n"
+                f"🎯 <b>Giriş:</b> <code>{entry_val:.4f}</code> | 🛑 <b>SL:</b> <code>{sl_val:.4f}</code> | 📈 <b>TP:</b> <code>{tp_val:.4f}</code>\n"
+                f"<b>Gerekçe:</b> <i>{decision.get('reason', 'Neden belirtilmedi')}</i>"
             )
             
             if was_watch and not updated_trade.get("is_watch", False):
-                msg = "🚀 <b>WATCH'TAN ANA BOTA GEÇİŞ!</b> 🚀\n━━━━━━━━━━━━━━━━━━\n" + msg
+                msg = "🚀 <b>WATCH'TAN ANA BOTA GEÇİŞ!</b> 🚀\n" + msg
                 await self.notifier.send_message(msg)
             elif updated_trade.get("is_watch", False):
                 await self.notifier.send_message(msg, is_watch=True)

@@ -64,12 +64,12 @@ async def get_ai_commentary(signals, chart_path=None, df_4h=None):
             )
             
         prompt = (
-            "Sen üst düzey bir Kripto Para ve Borsa Kantitatif Analistisin (Top-Tier Quant Analyst).\n"
-            "Görevin, sana sağlanan teknik indikatör verilerini (RSI, ADX, MACD, CMF vb.) ve grafik fiyat hareketlerini inceleyerek, "
-            "tıpkı profesyonel bir fon yöneticisi gibi tamamen objektif, bütüncül (holistik) ve esnek bir piyasa analizi yapmaktır.\n\n"
-            "Sinyaller:\n" + "\n\n".join(signal_details) + "\n\n"
-            "Görev: Sadece verilen teknik indikatörleri, işlem yönünü (LONG/SHORT) ve giriş/SL/TP seviyelerini objektif olarak analiz et.\n"
-            "Eğer sana sinyalin grafik görüntüsü iletildiyse, grafikteki fiyat hareketlerini, destek/direnç bölgelerini, hareketli ortalamaları ve trend yapısını da görsel olarak incele ve uyuşmazlıkları teyit et.\n\n"
+            "Sen üst düzey ve efsanevi bir Kripto Para ve Borsa Kantitatif Analistisin (Master Crypto Trader).\n"
+            "Görevin, sana iletilen sınırlı verilere bağımlı kalmadan, sanki şu an TradingView'da veya profesyonel bir terminalde o varlığın grafiğini kendi başına açıp inceliyormuş gibi düşünmektir.\n"
+            "DİKKAT: Biz uzun vadeli yatırımcı değiliz, günlük al-sat (Day Trading) yapıyoruz. Yorumlarını uzun vadeye göre değil, gün içi / kısa vadeli (intraday) trendlere ve fiyat hareketlerine göre yap.\n\n"
+            "Sinyaller (yalnızca referans için):\n" + "\n\n".join(signal_details) + "\n\n"
+            "Görev: Bizim gönderdiğimiz teknik verilere sınırlı kalma. Varlığın kısa vadeli piyasa durumunu, gün içi destek/direnç seviyelerini ve trend yapısını kendi usta trader vizyonunla değerlendir.\n"
+            "Bize gönderilen işlem yönünün (LONG veya SHORT) kısa vadeli piyasa şartlarına uyup uymadığını kendi teknik öngörülerini kullanarak bağımsız şekilde analiz et.\n\n"
         )
 
         if df_4h is not None and not df_4h.empty:
@@ -90,15 +90,16 @@ async def get_ai_commentary(signals, chart_path=None, df_4h=None):
 
         prompt += (
             "KESİN KURALLAR VE ANALİZ YAKLAŞIMI:\n"
-            "1. Dış Kaynaklardan Tamamen Bağımsız Ol: Yalnızca sana verilen teknik indikatör verilerine, gerekçelere ve son 15 mumluk fiyat tablosuna dayanarak objektif bir şekilde yorum yap. Dışarıdan ekstra bilgi uydurma.\n"
-            "2. Kısa ve Öz Tut: Analizini ve kanıtlarını son derece kısa, net ve öz tut (toplamda en fazla 3-4 cümle).\n"
-            "3. Çift Yönlü Düşünce: Hangi verilerin sinyali desteklediğini ve hangilerinin çeliştiğini dürüstçe değerlendir. Hacim ve momentum uyumunu gözet.\n"
-            "4. Objektif Skorlama (0-100):\n"
-            "   - 0-49: Sinyal zayıf veya çelişkili. (Karar: İŞLEME GİRME)\n"
-            "   - 50-100: Güçlü, tutarlı veya makul risk/ödül oranına sahip sinyal. (Karar: İŞLEME GİR)\n\n"
+            "1. Kendi Analizini Yap: Sana verilen veriler sadece bir uyarandır. Sen TradingView ekranında grafiği kendi başına inceliyormuş gibi piyasa yapısını, likidite bölgelerini ve trendi kendi geniş uzmanlığınla yorumla.\n"
+            "2. Acımasızca Seçici Ol: Eğer piyasa yapısında belirsizlik varsa, trend sıkışmışsa veya içinden 'temkinli olmalıyım' diyorsan ASLA 'İŞLEME GİR' deme. Yarım ağızla işleme girilmez.\n"
+            "3. Mantıksal Tutarlılık (ÇOK ÖNEMLİ): Eğer analiz metninde 'belirsiz, kararsız, yatay, temkinli' gibi risk ifade eden bir görüş belirtiyorsan, Kararın KESİNLİKLE 'İŞLEME GİRME' (Skor < 50) olmalıdır.\n"
+            "4. Kısa ve Öz Tut: Analizini ve piyasa görüşünü son derece kısa, net ve öz tut (toplamda en fazla 3-4 cümle).\n"
+            "5. Objektif Skorlama (0-100):\n"
+            "   - 0-49: Sinyal zayıf, yön belirsiz, yatay piyasa veya çelişkili durum. (Karar: İŞLEME GİRME)\n"
+            "   - 50-100: Sadece teknik görünümün çok net, güçlü ve yüksek potansiyelli olduğu durumlar. (Karar: İŞLEME GİR)\n\n"
             "ÇIKTI FORMATI: Analizini yaparken aşağıdaki şablonu KESİNLİKLE bozmadan kullan. Başka metin ekleme:\n\n"
             "🤖 **[Varlık Adı]**\n"
-            "🧠 **Analiz:** [1-2 cümlelik teknik bağlam, destekleyen/çelişen kanıtlar]\n"
+            "🧠 **Analiz:** [1-2 cümlelik kendi bağımsız ve usta işi analiziniz, fiyat hareketi veya trend yorumunuz]\n"
             "Skor: [0-100]\n"
             "Karar: [İŞLEME GİR veya İŞLEME GİRME]\n"
             "Neden: [Tüm kararın tek cümlelik özeti]"
@@ -114,7 +115,7 @@ async def get_ai_commentary(signals, chart_path=None, df_4h=None):
             "messages": [
                 {
                     "role": "system", 
-                    "content": "Sen üst düzey bir Kantitatif Analistsin. Duygusuz, tamamen kanıtlara (fiyat hareketi, hacim, momentum) dayalı düşünürsün."
+                    "content": "Sen efsanevi bir Kripto Para yatırımcısı ve analistisin. Verilen kısıtlı verilere bağlı kalmaz, kendi derin piyasa tecrübenle TradingView grafiğine bakıyormuşçasına bağımsız ve keskin yorumlar yaparsın."
                 },
                 {"role": "user", "content": prompt}
             ],

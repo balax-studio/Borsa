@@ -6,7 +6,8 @@ ThreadPoolExecutor ile toplu tarama.
 import logging
 import pandas as pd
 import config
-from datetime import datetime
+from datetime import datetime, time as dt_time
+from zoneinfo import ZoneInfo
 from config import (
     TOP_BIST, TOP_CRYPTO, TOP_EMTIA, TOP_HEAVY_SHORT, MEME_BLACKLIST,
     EMTIA_ATR_MULT, DXY_SENSITIVE, EMTIA_NAMES,
