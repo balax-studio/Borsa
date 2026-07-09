@@ -1,0 +1,143 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © YSR_MONSTER
+
+//@version=6
+indicator("KRİPTO 10: KESKİN NİŞANCI (SNIPER) 1H", overlay=true, max_labels_count=500)
+
+// ==============================================================================
+// 1. KULLANICI GİRDİLERİ (INPUTS)
+// ==============================================================================
+grp_mtf   = "MTF Ayarları"
+grp_filters = "Filtre Ayarları"
+
+timeframe_15m = input.timeframe("15", title="Alt Zaman Dilimi (Willy)", group=grp_mtf)
+timeframe_4h  = input.timeframe("240", title="Üst Zaman Dilimi (ATR)", group=grp_mtf)
+timeframe_1d  = input.timeframe("D", title="Trend Zaman Dilimi (Anti-Rekt)", group=grp_mtf)
+
+use_btc_filter = input.bool(false, title="BTC Yön Filtresi Kullan (Simüle)", group=grp_filters, tooltip="Eğer aktif edilirse, long için BTC'nin yükseliş, short için düşüş eğiliminde olması gerekir.")
+use_willy_filter = input.bool(true, title="Willy (15m) Onayı Kullan", group=grp_filters)
+
+// ==============================================================================
+// 2. GÖSTERGELER (1H - ANA GRAFİK)
+// ==============================================================================
+// Bollinger Bands (20, 2.0)
+[bb_mid, bb_upper, bb_lower] = ta.bb(close, 20, 2.0)
+bbw = bb_mid != 0 ? (bb_upper - bb_lower) / bb_mid : 0.0
+
+// Keltner Channels (20, 1.5)
+kc_mid = ta.ema(close, 20)
+kc_range = ta.atr(20) * 1.5
+kc_upper = kc_mid + kc_range
+kc_lower = kc_mid - kc_range
+
+// Diğer Göstergeler
+rsi_14 = ta.rsi(close, 14)
+ema_20 = ta.ema(close, 20)
+ema_50 = ta.ema(close, 50)
+vol_sma = ta.sma(volume, 20)
+
+// ==============================================================================
+// 3. ÜST ZAMAN DİLİMİ (MTF) VERİLERİ
+// ==============================================================================
+// Willy (Williams %R) - 15m
+f_willy_15m() =>
+    hh = ta.highest(high, 21)
+    ll = ta.lowest(low, 21)
+    willr = ((hh - close) / math.max(hh - ll, 1e-9)) * -100.0
+    ta.ema(willr, 13)
+
+willy_15m = request.security(syminfo.tickerid, timeframe_15m, f_willy_15m())
+
+// ATR - 4H
+f_atr_4h() => ta.atr(14)
+atr_4h = request.security(syminfo.tickerid, timeframe_4h, f_atr_4h())
+atr_pct = (atr_4h / close) * 100.0
+
+// Anti-Rekt Trend - 1D
+f_1d_trend() =>
+    [ta.ema(close, 20), ta.ema(close, 50), ta.rsi(close, 14)]
+[ema_20_1d, ema_50_1d, rsi_1d] = request.security(syminfo.tickerid, timeframe_1d, f_1d_trend())
+
+// BTC Filtresi (İsteğe Bağlı)
+f_btc_trend() =>
+    ta.ema(close, 20) > ta.ema(close, 50)
+btc_bullish = request.security("BINANCE:BTCUSDT", "60", f_btc_trend())
+
+
+// ==============================================================================
+// 4. FORMASYON: SWEEP / SFP (SWING FAILURE PATTERN)
+// ==============================================================================
+leftBars = 5
+rightBars = 2
+swingLow = ta.pivotlow(low, leftBars, rightBars)
+swingHigh = ta.pivothigh(high, leftBars, rightBars)
+
+var float last_sl = na
+var float last_sh = na
+if not na(swingLow)
+    last_sl := swingLow
+if not na(swingHigh)
+    last_sh := swingHigh
+
+// Sweep: Fiyat önceki swing low'un altına iner (veya high'ın üstüne çıkar) 
+// fakat kapanışını o noktanın içinde yapar.
+sweep_low  = low < last_sl and close > last_sl
+sweep_high = high > last_sh and close < last_sh
+
+// ==============================================================================
+// 5. FORMASYON: FVG (FAIR VALUE GAP)
+// ==============================================================================
+// Basitleştirilmiş FVG tespiti
+bullish_fvg = low > high[2] and close[1] > open[1]
+bearish_fvg = high < low[2] and close[1] < open[1]
+
+// Son 5 bar içinde FVG oluşmuş mu?
+fvg_bullish_recent = ta.barssince(bullish_fvg) <= 5
+fvg_bearish_recent = ta.barssince(bearish_fvg) <= 5
+
+// ==============================================================================
+// 6. SİNYAL MANTIĞI & FİLTRELER
+// ==============================================================================
+
+// --- LONG Sinyali ---
+// 1. BBW > 0.1000 olmamalı (Golden Filter)
+long_bbw_ok = bbw < 0.1000
+// 2. Hacim ortalamanın üzerinde olmalı
+long_vol_ok = volume > vol_sma * 0.5
+// 3. FVG Bullish yakın zamanda oluşmuş olmalı ve Swing Low Sweep (SFP) yaşanmalı
+// 4. Willy 15m dip bölgeden dönüş yapmış olmalı (örnek: -80 altı, esnek tutuldu)
+long_willy_ok = not use_willy_filter or (willy_15m < -60)
+long_btc_ok = not use_btc_filter or btc_bullish
+
+long_signal = sweep_low and fvg_bullish_recent and long_bbw_ok and long_vol_ok and long_willy_ok and long_btc_ok
+
+// --- SHORT Sinyali ---
+// 1. ATR % 1.0771 den büyük olmalı (Volatility yeterli mi)
+short_atr_ok = atr_pct > 1.0771
+// 2. Anti-Rekt (1D): Trend güçlüyse (EMA20 > EMA50 ve RSI > 60) short açma
+short_anti_rekt_block = (ema_20_1d > ema_50_1d) and (rsi_1d > 60)
+short_anti_rekt_ok = not short_anti_rekt_block
+// 3. Hacim ortalamanın üzerinde olmalı
+short_vol_ok = volume > vol_sma * 0.5
+// 4. FVG Bearish + Swing High Sweep (SFP)
+short_willy_ok = not use_willy_filter or (willy_15m > -40)
+short_btc_ok = not use_btc_filter or not btc_bullish
+
+short_signal = sweep_high and fvg_bearish_recent and short_atr_ok and short_anti_rekt_ok and short_vol_ok and short_willy_ok and short_btc_ok
+
+// ==============================================================================
+// 7. GRAFİK ÜZERİNDE ÇİZİM
+// ==============================================================================
+
+// Sinyaller
+plotshape(long_signal, title="Sniper Long", text="SNIPER LONG\n🚀", style=shape.labelup, location=location.belowbar, color=color.new(color.green, 0), textcolor=color.white, size=size.small)
+plotshape(short_signal, title="Sniper Short", text="SNIPER SHORT\n🩸", style=shape.labeldown, location=location.abovebar, color=color.new(color.red, 0), textcolor=color.white, size=size.small)
+
+// Swing Noktaları (Görsel Yardım)
+plot(last_sl, color=color.new(color.gray, 60), style=plot.style_cross, linewidth=1, title="Son Swing Low")
+plot(last_sh, color=color.new(color.gray, 60), style=plot.style_cross, linewidth=1, title="Son Swing High")
+
+// (Opsiyonel) Bollinger Bantlarını göstermek isterseniz alt satırları aktif edebilirsiniz:
+// p_bbu = plot(bb_upper, color=color.new(color.blue, 80), title="BB Upper")
+// p_bbl = plot(bb_lower, color=color.new(color.blue, 80), title="BB Lower")
+// fill(p_bbu, p_bbl, color=color.new(color.blue, 95))
